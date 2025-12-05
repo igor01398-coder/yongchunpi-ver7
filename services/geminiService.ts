@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_MODEL = 'gemini-2.5-flash-image';
@@ -92,15 +93,16 @@ export const validateImage = async (
     2. Compare it with the subsequent reference images (if any provided).
     3. Determine if the student's photo reasonably matches the mission requirements and the geological features shown in the reference images.
     
-    STRICT MATCHING RULE:
-    - If reference images are provided, the student's image MUST match the geological features (texture, color, structure) of the reference images with at least 70% similarity.
+    MATCHING RULE:
+    - If reference images are provided, the student's image should generally match the geological features (texture, color, rock type) of the reference images.
+    - Focus on identifying the correct geological subject (e.g., Sandstone, Retaining Wall) rather than demanding an exact pixel or strict high-fidelity match.
     - Reject selfies, wide landscape shots where the rock texture is invisible, or unrelated objects.
     - If no reference images are provided, judge based on the Mission Instruction.
-    - Be encouraging but strict enough to prevent wrong photos.
+    - Be encouraging but ensure the photo is relevant.
     
     Return a JSON object with:
     - isValid: boolean (true if the image is acceptable for this mission)
-    - feedback: string (A short, 1-sentence comment to the student. If valid, praise the specific feature found. If invalid, explain what is missing or wrong.)`;
+    - feedback: string (A short, 1-sentence comment to the student. If valid, praise the feature found. If invalid, explain what is missing or wrong.)`;
 
     parts.push({ text: prompt });
 

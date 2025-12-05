@@ -40,7 +40,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
     id: '2',
     title: 'Mission 02: 岩層解密',
     description: '請先回答地質問題，驗證所在地層後，再進行岩層採樣分析。',
-    targetPromptHint: '描述岩石特徵 (例如：羽毛狀節理)',
+    targetPromptHint: '描述岩石特徵',
     difficulty: 'Geologist',
     xpReward: 300, // Big Mission Reward
     rankRequirement: 'Scout',
@@ -51,7 +51,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
       question: "請問我們現在在哪一層？",
       answer: "南港層"
     },
-    uploadInstruction: "請拍攝所收集到的砂岩照片，需清晰呈現岩石紋理（如羽毛狀節理）。",
+    uploadInstruction: "請拍攝所收集到的砂岩照片即可。",
     type: 'main',
     referenceImage: 'https://drive.google.com/uc?export=view&id=1XEaYf4LuoadsCnneUUGQPFBObLRE9ikA',
     referenceCheckImages: [
