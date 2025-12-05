@@ -27,6 +27,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   const [error, setError] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   
+  // Side Mission Counter
+  const [sideMissionCount, setSideMissionCount] = useState(0);
+
   // Quiz State
   const [quizInput, setQuizInput] = useState<string>('');
   const [quizSelect1, setQuizSelect1] = useState<string>('');
@@ -287,16 +290,32 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
 
   // Triggered when user clicks "Transmit Data" or manual pass
   const handlePreComplete = () => {
-    playSfx('success');
-    setShowSuccessModal(true);
+    if (activePuzzle?.type === 'side') {
+        const newCount = sideMissionCount + 1;
+        setSideMissionCount(newCount);
+        
+        // Grant XP for each photo in side missions
+        if (onSideMissionProgress) onSideMissionProgress();
+        playSfx('success');
+
+        if (newCount >= 5) {
+             setShowSuccessModal(true);
+        } else {
+            // Reset for next upload
+            setOriginalImage(null);
+            setResultImage(null);
+            setValidationResult(null);
+            setPrompt('');
+            // Optional: Show toast or feedback could go here
+        }
+    } else {
+        playSfx('success');
+        setShowSuccessModal(true);
+    }
   };
 
   // Triggered when user clicks "Yay" in modal
   const handleFinalExit = () => {
-    if (activePuzzle?.type === 'side' && onSideMissionProgress) {
-        onSideMissionProgress(); 
-    }
-    
     if (onComplete) {
         const progressData: PuzzleProgress = {
             m1Heights: m1Heights,
@@ -355,6 +374,16 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                 >
                     <Lightbulb className="w-5 h-5" />
                 </a>
+            ) : activePuzzle?.type === 'side' ? (
+                 <a 
+                    href="https://drive.google.com/drive/folders/1kRvBQLBJbDLCND8kM9H2viI2l6ZcHxon?usp=sharing"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 hover:bg-amber-50 rounded-lg border border-amber-200 text-amber-600 shadow-sm transition-colors"
+                    title="開啟提示"
+                >
+                    <Lightbulb className="w-5 h-5" />
+                </a>
             ) : (
                 <>
                     {/* Gallery Button for Check Images */}
@@ -399,10 +428,17 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         {activePuzzle && !originalImage && (
           <div className={`border p-6 rounded-none relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500 ${activePuzzle.type === 'side' ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-teal-200 shadow-sm'}`}>
             <div className={`absolute top-0 left-0 w-1 h-full ${activePuzzle.type === 'side' ? 'bg-indigo-500' : 'bg-teal-500'}`}></div>
-            <h3 className={`font-mono text-xs mb-2 flex items-center gap-2 ${activePuzzle.type === 'side' ? 'text-indigo-600' : 'text-teal-600'}`}>
-                {activePuzzle.type === 'side' ? <ClipboardList className="w-4 h-4" /> : <Terminal className="w-4 h-4" />}
-                {activePuzzle.type === 'side' ? 'SIDE MISSION BRIEFING' : '任務目標'}
-            </h3>
+            <div className="flex justify-between items-start mb-2">
+                <h3 className={`font-mono text-xs flex items-center gap-2 ${activePuzzle.type === 'side' ? 'text-indigo-600' : 'text-teal-600'}`}>
+                    {activePuzzle.type === 'side' ? <ClipboardList className="w-4 h-4" /> : <Terminal className="w-4 h-4" />}
+                    {activePuzzle.type === 'side' ? 'SIDE MISSION BRIEFING' : '任務目標'}
+                </h3>
+                {activePuzzle.type === 'side' && (
+                    <span className="text-xs font-mono font-bold text-indigo-800 bg-indigo-200/50 px-2 py-0.5 rounded">
+                        UPLOADED: {sideMissionCount} / 5
+                    </span>
+                )}
+            </div>
             <p className="text-slate-700 mb-4 font-mono text-sm leading-relaxed border-l border-slate-200 pl-4">
                 {activePuzzle.description}
             </p>
@@ -802,10 +838,10 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                                 {( (activePuzzle?.id !== '2' && activePuzzle?.id !== '3') || isQuizSolved) ? (
                                      <button
                                         onClick={handlePreComplete}
-                                        className="w-full bg-teal-600 hover:bg-teal-500 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg mt-4 animate-in fade-in slide-in-from-bottom-2"
+                                        className={`w-full hover:opacity-90 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg mt-4 animate-in fade-in slide-in-from-bottom-2 ${activePuzzle?.type === 'side' ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-teal-600 hover:bg-teal-500'}`}
                                      >
                                         <CheckCircle className="w-6 h-6" />
-                                        <span>TRANSMIT DATA</span>
+                                        <span>{activePuzzle?.type === 'side' ? `UPLOAD & CONTINUE (${sideMissionCount + 1}/5)` : 'TRANSMIT DATA'}</span>
                                      </button>
                                 ) : (
                                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm font-mono flex items-center gap-2 animate-pulse">
