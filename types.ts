@@ -45,6 +45,12 @@ export interface PlayerStats {
   sosCount: number; // Number of times player can ask for help
 }
 
+export interface SideMissionSubmission {
+  image: string;
+  description: string;
+  timestamp: number;
+}
+
 export interface PuzzleProgress {
   m1Heights?: {
     tiger: string;
@@ -59,6 +65,9 @@ export interface PuzzleProgress {
   imageDescription?: string;
   uploadedImage?: string | null;
   
+  // Side Mission History
+  sideMissionSubmissions?: SideMissionSubmission[];
+
   // Solved Status Flags
   m1Part1Solved?: boolean;
   m1Part2Solved?: boolean;

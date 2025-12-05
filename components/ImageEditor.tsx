@@ -3,14 +3,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { editImageWithGemini, fileToGenerativePart, validateImage } from '../services/geminiService';
 // FIX: Use relative path
 import { playSfx } from '../services/audioService';
-import { Loader2, ArrowLeft, Upload, Camera, RefreshCw, Terminal, ChevronRight, CheckCircle, HelpCircle, AlertTriangle, ClipboardList, PartyPopper, Image as ImageIcon, ShieldCheck, Check, X, FolderOpen, ExternalLink, ScanSearch, Lightbulb, Map } from 'lucide-react';
-import { Puzzle, PuzzleProgress } from '../types';
+import { Loader2, ArrowLeft, Upload, Camera, RefreshCw, Terminal, ChevronRight, CheckCircle, HelpCircle, AlertTriangle, ClipboardList, PartyPopper, Image as ImageIcon, ShieldCheck, Check, X, FolderOpen, ExternalLink, ScanSearch, Lightbulb, Map, History } from 'lucide-react';
+import { Puzzle, PuzzleProgress, SideMissionSubmission } from '../types';
 
 interface ImageEditorProps {
   activePuzzle: Puzzle | null;
   onBack: (progress: PuzzleProgress) => void;
   onComplete?: (data?: PuzzleProgress) => void;
-  onSideMissionProgress?: () => void;
+  onSideMissionProgress?: (submission: SideMissionSubmission) => void;
   onFieldSolved?: () => void;
   initialState?: PuzzleProgress;
   isCompleted?: boolean;
@@ -27,8 +27,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   const [error, setError] = useState<string | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   
-  // Side Mission Counter
-  const [sideMissionCount, setSideMissionCount] = useState(0);
+  // Side Mission State
+  const [submissionHistory, setSubmissionHistory] = useState<SideMissionSubmission[]>([]);
 
   // Quiz State
   const [quizInput, setQuizInput] = useState<string>('');
@@ -79,6 +79,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             if (initialState.imageDescription) setPrompt(initialState.imageDescription);
             // Restore image
             if (initialState.uploadedImage) setOriginalImage(initialState.uploadedImage);
+            // Restore Side Mission History
+            if (initialState.sideMissionSubmissions) setSubmissionHistory(initialState.sideMissionSubmissions);
             
             // Restore Solved States
             if (initialState.m1Part1Solved) setM1Part1Solved(true);
@@ -132,7 +134,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         // Save Solved Flags
         m1Part1Solved,
         m1Part2Solved,
-        isQuizSolved
+        isQuizSolved,
+        // Save history
+        sideMissionSubmissions: submissionHistory
     };
     onBack(progress);
   };
@@ -291,23 +295,34 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   // Triggered when user clicks "Transmit Data" or manual pass
   const handlePreComplete = () => {
     if (activePuzzle?.type === 'side') {
-        const newCount = sideMissionCount + 1;
-        setSideMissionCount(newCount);
+        if (!originalImage) return;
+
+        // Create submission object
+        const newSubmission: SideMissionSubmission = {
+            image: originalImage,
+            description: prompt || "No description",
+            timestamp: Date.now()
+        };
+
+        // Update local history for display
+        setSubmissionHistory(prev => [newSubmission, ...prev]);
+
+        // Trigger parent callback to save state and award XP
+        if (onSideMissionProgress) onSideMissionProgress(newSubmission);
         
-        // Grant XP for each photo in side missions
-        if (onSideMissionProgress) onSideMissionProgress();
         playSfx('success');
 
-        if (newCount >= 5) {
+        // Check total count for celebration modal (optional logic, kept from before)
+        if (submissionHistory.length + 1 >= 5 && !showSuccessModal) {
              setShowSuccessModal(true);
-        } else {
-            // Reset for next upload
-            setOriginalImage(null);
-            setResultImage(null);
-            setValidationResult(null);
-            setPrompt('');
-            // Optional: Show toast or feedback could go here
         }
+
+        // RESET FIELDS FOR NEXT UPLOAD
+        setOriginalImage(null);
+        setResultImage(null);
+        setValidationResult(null);
+        setPrompt('');
+        
     } else {
         playSfx('success');
         setShowSuccessModal(true);
@@ -327,7 +342,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             uploadedImage: originalImage,
             m1Part1Solved,
             m1Part2Solved,
-            isQuizSolved
+            isQuizSolved,
+            sideMissionSubmissions: submissionHistory
         };
         onComplete(progressData);
     }
@@ -435,7 +451,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                 </h3>
                 {activePuzzle.type === 'side' && (
                     <span className="text-xs font-mono font-bold text-indigo-800 bg-indigo-200/50 px-2 py-0.5 rounded">
-                        UPLOADED: {sideMissionCount} / 5
+                        UPLOADED: {submissionHistory.length}
                     </span>
                 )}
             </div>
@@ -841,7 +857,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                                         className={`w-full hover:opacity-90 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg mt-4 animate-in fade-in slide-in-from-bottom-2 ${activePuzzle?.type === 'side' ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-teal-600 hover:bg-teal-500'}`}
                                      >
                                         <CheckCircle className="w-6 h-6" />
-                                        <span>{activePuzzle?.type === 'side' ? `UPLOAD & CONTINUE (${sideMissionCount + 1}/5)` : 'TRANSMIT DATA'}</span>
+                                        <span>{activePuzzle?.type === 'side' ? `UPLOAD & CONTINUE (${submissionHistory.length + 1})` : 'TRANSMIT DATA'}</span>
                                      </button>
                                 ) : (
                                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm font-mono flex items-center gap-2 animate-pulse">
@@ -853,6 +869,42 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                          )}
                     </div>
                 )}
+                </div>
+            </div>
+        )}
+
+        {/* Side Mission History Log */}
+        {activePuzzle?.type === 'side' && submissionHistory.length > 0 && (
+            <div className="mt-6 border-t border-slate-200 pt-6 animate-in slide-in-from-bottom-4">
+                <h3 className="text-sm font-bold font-mono text-slate-600 mb-4 flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    FIELD LOG (現場紀錄)
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                    {submissionHistory.map((sub, idx) => (
+                        <div key={idx} className="bg-white border border-slate-200 rounded-lg p-3 flex gap-3 shadow-sm">
+                            <div className="w-20 h-20 shrink-0 bg-slate-100 rounded border border-slate-200 overflow-hidden">
+                                <img 
+                                    src={`data:image/jpeg;base64,${sub.image}`} 
+                                    alt={`Submission ${idx}`} 
+                                    className="w-full h-full object-cover"
+                                />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex justify-between items-start mb-1">
+                                    <span className="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 font-bold">
+                                        ENTRY #{submissionHistory.length - idx}
+                                    </span>
+                                    <span className="text-[10px] text-slate-400 font-mono">
+                                        {new Date(sub.timestamp).toLocaleTimeString()}
+                                    </span>
+                                </div>
+                                <p className="text-xs text-slate-700 leading-relaxed break-words">
+                                    {sub.description || "No notes recorded."}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
         )}

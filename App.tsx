@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Puzzle, AppView, PlayerStats, PuzzleProgress } from './types';
+import { Puzzle, AppView, PlayerStats, PuzzleProgress, SideMissionSubmission } from './types';
 import { ImageEditor } from './components/ImageEditor';
 import { GameMap } from './components/GameMap';
 import { IntroScreen } from './components/IntroScreen';
@@ -286,6 +286,12 @@ const App: React.FC = () => {
         Object.keys(liteProgress).forEach(key => {
             const entry = { ...liteProgress[key] };
             if (entry.uploadedImage) entry.uploadedImage = null; // Remove heavy image data
+            
+            // For side missions, maybe we keep just the latest or a few?
+            // For now, let's just warn and try to save without the main uploadedImage.
+            // If sideMissionSubmissions grows too large, it might still fail, 
+            // but we want to persist them as requested.
+            
             cleanedProgress[key] = entry;
         });
 
@@ -416,11 +422,8 @@ const App: React.FC = () => {
 
         if (activePuzzle.type === 'side') {
              playSfx('success');
-             setPuzzleProgress(prev => {
-                 const newProg = { ...prev };
-                 delete newProg[activePuzzle.id]; 
-                 return newProg;
-             });
+             // For side missions, we usually don't delete progress anymore since we want to keep history
+             // Just return to home
              setView(AppView.HOME);
              setActivePuzzle(null);
              return;
@@ -470,20 +473,35 @@ const App: React.FC = () => {
     setView(AppView.HOME);
   };
   
-  const handleSideMissionProgress = () => {
+  const handleSideMissionProgress = (submission: SideMissionSubmission) => {
       if (activePuzzle && activePuzzle.type === 'side') {
            playSfx('success');
+           
+           // Update XP
            setPlayerStats(prev => {
-            const newXp = prev.currentXp + activePuzzle.xpReward;
-            const newLevel = Math.floor(newXp / 500) + 1; 
-            return {
-                ...prev,
-                currentXp: newXp,
-                level: newLevel,
-                rank: getRankTitle(newLevel),
-                mana: Math.max(0, prev.mana - 15) 
-            };
-        });
+                const newXp = prev.currentXp + activePuzzle.xpReward;
+                const newLevel = Math.floor(newXp / 500) + 1; 
+                return {
+                    ...prev,
+                    currentXp: newXp,
+                    level: newLevel,
+                    rank: getRankTitle(newLevel),
+                    mana: Math.max(0, prev.mana - 15) 
+                };
+            });
+
+           // Update Puzzle Progress (Append submission to history)
+           setPuzzleProgress(prev => {
+               const currentProgress = prev[activePuzzle.id] || {};
+               const currentHistory = currentProgress.sideMissionSubmissions || [];
+               return {
+                   ...prev,
+                   [activePuzzle.id]: {
+                       ...currentProgress,
+                       sideMissionSubmissions: [submission, ...currentHistory]
+                   }
+               };
+           });
       }
   };
 
