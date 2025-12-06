@@ -198,7 +198,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             {!isFogTimeReached ? <Lock className="w-5 h-5" /> : (isFogEnabled ? <CloudFog className="w-5 h-5" /> : <Eye className="w-5 h-5" />)}
                         </div>
                         <div>
-                            <div className="font-bold text-slate-700 text-sm">迷霧模式 (Fog of War)</div>
+                            <div className="font-bold text-slate-700 text-sm">迷霧模式 (Mysterious mist)</div>
                             <div className="text-[10px] text-slate-500 font-mono">
                                 {!isFogTimeReached ? 'LOCKED (WAIT T+01:00)' : isFogEnabled ? 'ACTIVE' : 'DISABLED'}
                             </div>
@@ -250,7 +250,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </button>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2 font-mono ml-1">
-                    * 下載或複製調查報告，便於分享至群組。
+                    * 下載或複製調查報告，便於分享至群組及回饋單。
                 </p>
             </div>
 
