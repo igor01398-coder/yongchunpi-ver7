@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Settings, Volume2, VolumeX, Eye, EyeOff, RotateCcw, Lock, CloudFog, Download, FileText, Copy, Check } from 'lucide-react';
+import { X, Settings, Volume2, VolumeX, Eye, EyeOff, RotateCcw, Lock, CloudFog, Download, FileText, Copy, Check, MessageSquare } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -251,6 +251,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
                 <p className="text-[10px] text-slate-400 mt-2 font-mono ml-1">
                     * 下載或複製調查報告，便於分享至群組。
+                </p>
+            </div>
+
+            {/* Feedback Section */}
+            <div>
+                <h3 className="text-xs font-mono font-bold text-slate-500 uppercase mb-3">Feedback Channel</h3>
+                <a 
+                    href="https://forms.gle/9AARkdi4Hh8cyaJ2A" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 hover:border-blue-300 py-3 rounded-lg font-mono font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm group"
+                >
+                    <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                    填寫回饋表單 (OPEN SURVEY)
+                </a>
+                <p className="text-[10px] text-slate-400 mt-2 font-mono ml-1">
+                    * 您的意見能幫助我們改進調查系統。
                 </p>
             </div>
 
