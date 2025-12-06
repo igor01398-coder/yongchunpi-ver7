@@ -80,7 +80,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const m3 = puzzleProgress?.['3'];
         if (m3) {
             report += `【任務三：等高線挑戰】\n`;
-            report += `[等高線判讀]: 等高線越「${m3.quizSelect1 || '-'}」，爬起來越「${m3.quizSelect2 || '-'}」\n`;
+            report += `[等高線判讀]: 等高線越「${m3.quizSelect1 || '-'}」，爬起來越「${m3.quizSelect2 || '-'}」，坡度感受「${m3.quizSelect3 || '-'}」\n`;
             report += `[路線繪製筆記]: ${m3.imageDescription || '未填寫'}\n\n`;
         } else {
              report += `【任務三】：尚未開始\n\n`;

@@ -62,6 +62,7 @@ export interface PuzzleProgress {
   quizInput?: string;
   quizSelect1?: string;
   quizSelect2?: string;
+  quizSelect3?: string; // New dropdown for slope feeling
   imageDescription?: string;
   uploadedImage?: string | null;
   

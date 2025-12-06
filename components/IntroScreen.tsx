@@ -203,7 +203,7 @@ export const IntroScreen: React.FC<IntroScreenProps> = ({ onStart, onContinue, h
         
         {/* Footer */}
         <div className="text-center mt-4 text-[10px] font-mono text-slate-400 shrink-0 relative z-20">
-            SYSTEM VERSION 2.5.1 // COPYRIGHT © YONGCHUN GEOLAB
+            SYSTEM VERSION 25.12.3 // COPYRIGHT © isky
         </div>
 
       </div>
