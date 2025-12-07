@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { X, Settings, Volume2, VolumeX, Eye, EyeOff, RotateCcw, Lock, CloudFog, Download, FileText, Copy, Check, MessageSquare } from 'lucide-react';
 
@@ -131,161 +130,126 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const handleCopy = async () => {
     const report = generateReportString();
     if (!report) return;
-
+    
     try {
         await navigator.clipboard.writeText(report);
         setCopySuccess(true);
         setTimeout(() => setCopySuccess(false), 2000);
-    } catch (err) {
-        console.error('Failed to copy text: ', err);
-        alert("複製失敗，請手動下載。");
+    } catch (e) {
+        console.error("Copy failed:", e);
+        alert("複製失敗，請手動複製。");
     }
   };
 
   return (
-    <div className="absolute inset-0 z-[1400] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xl relative flex flex-col">
-        
-        {/* Header */}
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-            <h2 className="text-lg font-bold font-mono text-slate-700 flex items-center gap-2">
-                <Settings className="w-5 h-5" /> 系統設定 (SYSTEM CONFIG)
-            </h2>
-            <button 
-                onClick={onClose}
-                className="text-slate-400 hover:text-slate-900"
-            >
-                <X className="w-5 h-5" />
-            </button>
-        </div>
-
-        <div className="p-6 space-y-6">
+    <div className="absolute inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+        <div className="bg-white border border-slate-200 w-full max-w-sm rounded-xl shadow-2xl overflow-hidden relative">
+             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h2 className="text-lg font-bold font-mono text-slate-700 flex items-center gap-2">
+                    <Settings className="w-5 h-5" /> 系統設定
+                </h2>
+                <button 
+                    onClick={onClose}
+                    className="text-slate-400 hover:text-slate-900"
+                >
+                    <X className="w-5 h-5" />
+                </button>
+            </div>
             
-            {/* Audio Section */}
-            <div>
-                <h3 className="text-xs font-mono font-bold text-slate-500 uppercase mb-3">Audio Protocol</h3>
-                <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+            <div className="p-6 space-y-6">
+                
+                {/* Audio Setting */}
+                <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${isSfxEnabled ? 'bg-teal-100 text-teal-600' : 'bg-slate-200 text-slate-400'}`}>
+                        <div className={`p-2 rounded-lg ${isSfxEnabled ? 'bg-teal-100 text-teal-600' : 'bg-slate-100 text-slate-400'}`}>
                             {isSfxEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
                         </div>
                         <div>
-                            <div className="font-bold text-slate-700 text-sm">音效系統 (SFX)</div>
-                            <div className="text-[10px] text-slate-500 font-mono">
-                                {isSfxEnabled ? 'SYSTEM ONLINE' : 'MUTED'}
-                            </div>
+                            <div className="font-bold text-slate-800 text-sm">音效 (SFX)</div>
+                            <div className="text-xs text-slate-500">介面點擊與任務提示音</div>
                         </div>
                     </div>
-                    
-                    {/* Toggle Switch */}
                     <button 
                         onClick={() => onToggleSfx(!isSfxEnabled)}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 ${isSfxEnabled ? 'bg-teal-500' : 'bg-slate-300'}`}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${isSfxEnabled ? 'bg-teal-500' : 'bg-slate-300'}`}
                     >
-                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ${isSfxEnabled ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${isSfxEnabled ? 'left-7' : 'left-1'}`}></div>
                     </button>
                 </div>
-            </div>
 
-            {/* Visual Section */}
-            <div>
-                <h3 className="text-xs font-mono font-bold text-slate-500 uppercase mb-3">Visual Obfuscation</h3>
-                <div className={`flex items-center justify-between p-4 rounded-lg border transition-all ${
-                    !isFogTimeReached ? 'bg-slate-100 border-slate-200 opacity-75' : 'bg-slate-50 border-slate-200'
-                }`}>
+                {/* Fog Setting */}
+                <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${!isFogTimeReached ? 'bg-slate-200 text-slate-400' : isFogEnabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-200 text-slate-400'}`}>
-                            {!isFogTimeReached ? <Lock className="w-5 h-5" /> : (isFogEnabled ? <CloudFog className="w-5 h-5" /> : <Eye className="w-5 h-5" />)}
+                        <div className={`p-2 rounded-lg ${isFogEnabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                            {isFogEnabled ? <CloudFog className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
                         </div>
                         <div>
-                            <div className="font-bold text-slate-700 text-sm">迷霧模式 (Mysterious mist)</div>
-                            <div className="text-[10px] text-slate-500 font-mono">
-                                {!isFogTimeReached ? 'LOCKED (WAIT T+01:00)' : isFogEnabled ? 'ACTIVE' : 'DISABLED'}
+                            <div className="font-bold text-slate-800 text-sm">探險迷霧 (Mysterious Mist)</div>
+                            <div className="text-xs text-slate-500">
+                                {isFogTimeReached ? "已啟動：視野受限" : "尚未啟動：20分鐘後開啟"}
                             </div>
                         </div>
                     </div>
-                    
-                    {/* Toggle Switch */}
                     <button 
                         onClick={onToggleFog}
-                        disabled={!isFogTimeReached}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 ${
-                            !isFogTimeReached ? 'bg-slate-200 cursor-not-allowed' :
-                            isFogEnabled ? 'bg-indigo-500' : 'bg-slate-300'
-                        }`}
+                        className={`w-12 h-6 rounded-full transition-colors relative ${isFogEnabled ? 'bg-indigo-500' : 'bg-slate-300'}`}
                     >
-                        <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform duration-300 ${
-                            isFogEnabled && isFogTimeReached ? 'translate-x-6' : 'translate-x-0'
-                        }`}></div>
+                        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform shadow-sm ${isFogEnabled ? 'left-7' : 'left-1'}`}></div>
                     </button>
                 </div>
-                {!isFogTimeReached && (
-                    <p className="text-[10px] text-amber-600 mt-2 font-mono flex items-center gap-1">
-                        <Lock className="w-3 h-3" /> 功能鎖定中：請於任務開始 1 分鐘後再嘗試。
-                    </p>
-                )}
-            </div>
 
-            {/* Data Management Section */}
-            <div>
-                <h3 className="text-xs font-mono font-bold text-slate-500 uppercase mb-3">Data Management</h3>
-                <div className="grid grid-cols-2 gap-3">
-                    <button 
-                        onClick={handleDownload}
-                        className="bg-white hover:bg-teal-50 text-teal-700 border border-teal-200 hover:border-teal-300 py-3 rounded-lg font-mono font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
-                    >
-                        <Download className="w-4 h-4" />
-                        下載 (TXT)
-                    </button>
-                    <button 
-                        onClick={handleCopy}
-                        className={`border py-3 rounded-lg font-mono font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-sm ${
-                            copySuccess 
-                            ? 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600' 
-                            : 'bg-white hover:bg-indigo-50 text-indigo-700 border-indigo-200 hover:border-indigo-300'
-                        }`}
-                    >
-                        {copySuccess ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                        {copySuccess ? '已複製！' : '複製文字'}
-                    </button>
+                <hr className="border-slate-100" />
+
+                {/* Export Report */}
+                <div className="space-y-3">
+                    <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-slate-500" />
+                        探險紀錄匯出
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button 
+                            onClick={handleCopy}
+                            className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded text-xs font-mono font-bold transition-colors"
+                        >
+                            {copySuccess ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                            {copySuccess ? "已複製" : "複製文字"}
+                        </button>
+                        <button 
+                            onClick={handleDownload}
+                            className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 rounded text-xs font-mono font-bold transition-colors"
+                        >
+                            <Download className="w-3 h-3" />
+                            下載檔案
+                        </button>
+                    </div>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-2 font-mono ml-1">
-                    * 下載或複製調查報告，便於分享至群組及回饋單。
-                </p>
+
+                <hr className="border-slate-100" />
+
+                {/* Reset Game */}
+                <div className="bg-rose-50 p-4 rounded-lg border border-rose-100">
+                    <div className="flex items-start gap-3">
+                        <div className="p-1.5 bg-rose-100 rounded text-rose-600">
+                            <RotateCcw className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1">
+                            <div className="font-bold text-rose-800 text-sm mb-1">重置遊戲進度</div>
+                            <p className="text-xs text-rose-600 mb-3 leading-relaxed">
+                                清除所有紀錄並回到初始畫面。此動作無法復原。
+                            </p>
+                            <button 
+                                onClick={onResetGame}
+                                className="w-full bg-rose-200 hover:bg-rose-300 text-rose-800 py-2 rounded text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Lock className="w-3 h-3" />
+                                確認重置
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
             </div>
-
-            {/* Feedback Section */}
-            <div>
-                <h3 className="text-xs font-mono font-bold text-slate-500 uppercase mb-3">Feedback Channel</h3>
-                <a 
-                    href="https://forms.gle/9AARkdi4Hh8cyaJ2A" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="w-full bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 hover:border-blue-300 py-3 rounded-lg font-mono font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm group"
-                >
-                    <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                    填寫回饋表單 (OPEN SURVEY)
-                </a>
-                <p className="text-[10px] text-slate-400 mt-2 font-mono ml-1">
-                    * 您的意見能幫助我們改進調查流程。
-                </p>
-            </div>
-
         </div>
-
-        {/* Footer / Danger Zone */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50 mt-auto">
-            <h3 className="text-[10px] font-mono font-bold text-rose-400 uppercase mb-2">Danger Zone</h3>
-            <button 
-                onClick={onResetGame}
-                className="w-full bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 hover:border-rose-300 py-3 rounded-lg font-mono font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm"
-            >
-                <RotateCcw className="w-4 h-4" />
-                SYSTEM RESET (DELETE SAVE)
-            </button>
-        </div>
-
-      </div>
     </div>
   );
 };

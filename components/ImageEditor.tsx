@@ -199,7 +199,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
 
     // Mission 3 Logic: Dropdowns
     if (activePuzzle.id === '3') {
-         // Logic: Dense=Tired=VerySteep OR Sparse=Not Tired=Gentle
+         // Logic: 
+         // A: Dense (密集) + Tired (累) + Very Steep (很陡)
+         // B: Sparse (稀疏) + Not Tired (不累) + Gentle (平緩)
          if ((quizSelect1 === '密集' && quizSelect2 === '累' && quizSelect3 === '很陡') || 
              (quizSelect1 === '稀疏' && quizSelect2 === '不累' && quizSelect3 === '平緩')) {
              isCorrect = true;
@@ -321,7 +323,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
              setShowSuccessModal(true);
         }
 
-        // RESET FIELDS FOR NEXT UPLOAD
+        // RESET FIELDS FOR NEXT UPLOAD (Side Mission Specific)
         setOriginalImage(null);
         setResultImage(null);
         setValidationResult(null);

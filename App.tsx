@@ -117,7 +117,7 @@ const TREASURE_MAP_IMAGE = "https://drive.google.com/uc?export=view&id=1Gs8D2-eM
 const TUTORIAL_STEPS = [
     {
         title: '行動提示',
-        desc: '注意！前方環境開始不穩定。再過 1 分鐘，神祕的「探險迷霧」就會降臨，請加快腳步前進！',
+        desc: '注意！前方環境開始不穩定。再過 20 分鐘，神祕的「探險迷霧」就會降臨，請加快腳步前進！',
         icon: <CloudFog className="w-10 h-10 text-teal-600" />
     },
     {
@@ -165,10 +165,11 @@ const App: React.FC = () => {
   const [isFogEnabled, setIsFogEnabled] = useState<boolean>(true);
 
   // Initialize Fog Status based on elapsed time from saved startTime
+  // Changed logic: 20 minutes (1200 seconds)
   const [isFogTimeReached, setIsFogTimeReached] = useState<boolean>(() => {
       if (initialSaveData?.startTime) {
           const diff = (new Date().getTime() - initialSaveData.startTime.getTime()) / 1000;
-          return diff >= 60;
+          return diff >= 1200;
       }
       return false;
   });
@@ -176,8 +177,8 @@ const App: React.FC = () => {
   const [fogOpacity, setFogOpacity] = useState<number>(() => {
       if (initialSaveData?.startTime) {
           const diff = (new Date().getTime() - initialSaveData.startTime.getTime()) / 1000;
-          if (diff >= 60) {
-              return Math.min(Math.max((diff - 60) / 20, 0), 1) * 0.9;
+          if (diff >= 1200) {
+              return Math.min(Math.max((diff - 1200) / 20, 0), 1) * 0.9;
           }
       }
       return 0;
@@ -287,10 +288,7 @@ const App: React.FC = () => {
             const entry = { ...liteProgress[key] };
             if (entry.uploadedImage) entry.uploadedImage = null; // Remove heavy image data
             
-            // For side missions, maybe we keep just the latest or a few?
-            // For now, let's just warn and try to save without the main uploadedImage.
-            // If sideMissionSubmissions grows too large, it might still fail, 
-            // but we want to persist them as requested.
+            // Note: We might also need to clean sideMissionSubmissions if it gets too large
             
             cleanedProgress[key] = entry;
         });
@@ -318,14 +316,14 @@ const App: React.FC = () => {
         const now = new Date();
         const diffInSeconds = Math.floor((now.getTime() - startTime.getTime()) / 1000);
         
-        // FOG LOGIC: Activate fog after 1 minute (60 seconds)
-        if (diffInSeconds >= 60) {
+        // FOG LOGIC: Activate fog after 20 minutes (1200 seconds)
+        if (diffInSeconds >= 1200) {
             if (!isFogTimeReached) setIsFogTimeReached(true);
             
             // Fade in over 20 seconds
             const fadeDuration = 20;
             const maxOpacity = 0.9;
-            const progress = Math.min(Math.max((diffInSeconds - 60) / fadeDuration, 0), 1);
+            const progress = Math.min(Math.max((diffInSeconds - 1200) / fadeDuration, 0), 1);
             setFogOpacity(progress * maxOpacity);
         } else {
             setFogOpacity(0);
@@ -638,7 +636,7 @@ const App: React.FC = () => {
                                     gpsStatus === 'error' ? 'text-rose-700' : 'text-amber-700'
                                 }`}>
                                     <span className="hidden sm:inline">
-                                        {gpsStatus === 'locked' ? 'GPS LOCKED ' : gpsStatus === 'error' ? 'GPS OFFLINE' : 'SEARCHING...'}
+                                        {gpsStatus === 'locked' ? 'GPS ' : gpsStatus === 'error' ? 'GPS ' : '...'}
                                     </span>
                                     {gpsStatus === 'locked' && gpsAccuracy && (
                                         <span>{`±${Math.round(gpsAccuracy)}m`}</span>
