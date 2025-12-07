@@ -267,7 +267,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     填寫回饋表單 (OPEN SURVEY)
                 </a>
                 <p className="text-[10px] text-slate-400 mt-2 font-mono ml-1">
-                    * 您的意見能幫助我們改進調查系統。
+                    * 您的意見能幫助我們改進調查流程。
                 </p>
             </div>
 
