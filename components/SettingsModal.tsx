@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Settings, Volume2, VolumeX, Eye, EyeOff, RotateCcw, Lock, CloudFog, Download, FileText, Copy, Check, MessageSquare } from 'lucide-react';
+import { X, Settings, Volume2, VolumeX, Eye, EyeOff, RotateCcw, Lock, CloudFog, Download, FileText, Copy, Check, MessageSquare, ClipboardCheck } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -221,6 +221,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             <Download className="w-3 h-3" />
                             下載檔案
                         </button>
+                    </div>
+                </div>
+
+                <hr className="border-slate-100" />
+
+                {/* Survey Link */}
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                    <div className="flex items-start gap-3">
+                        <div className="p-1.5 bg-purple-100 rounded text-purple-600">
+                            <ClipboardCheck className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1">
+                            <div className="font-bold text-purple-800 text-sm mb-1">活動回饋 (Survey)</div>
+                            <p className="text-xs text-purple-600 mb-3 leading-relaxed">
+                                探險結束後，請協助填寫。
+                            </p>
+                            <a 
+                                href="https://docs.google.com/forms/d/e/1FAIpQLSdAGXib_RfYl3wLCIHezeNzJBtYzvnz_RU9NA9eXr_qjIWJNQ/viewform"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-full bg-purple-200 hover:bg-purple-300 text-purple-800 py-2 rounded text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                            >
+                                <ClipboardCheck className="w-3 h-3" />
+                                填寫回饋單
+                            </a>
+                        </div>
                     </div>
                 </div>
 
