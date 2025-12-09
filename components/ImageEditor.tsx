@@ -47,6 +47,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   const [isQuizSolved, setIsQuizSolved] = useState<boolean>(false);
   const [showQuizError, setShowQuizError] = useState<boolean>(false);
   
+  // Failure Tracking
+  const [failureCount, setFailureCount] = useState<number>(0);
+  
   // Reference Image State
   const [showReferenceImage, setShowReferenceImage] = useState<boolean>(false);
   
@@ -83,6 +86,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             if (initialState.uploadedImage) setOriginalImage(initialState.uploadedImage);
             // Restore Side Mission History
             if (initialState.sideMissionSubmissions) setSubmissionHistory(initialState.sideMissionSubmissions);
+            // Restore Failure Count
+            if (initialState.failureCount !== undefined) setFailureCount(initialState.failureCount);
             
             // Restore Solved States
             if (initialState.m1Part1Solved) setM1Part1Solved(true);
@@ -113,11 +118,14 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             setM1Part2Solved(false);
             setM1Part1Error(false);
             setM1Part2Error(false);
+            // Reset failure count
+            setFailureCount(0);
 
             setShowQuizError(false);
         } else if (!activePuzzle.quiz) {
             // No quiz for this puzzle, auto-solve
             setIsQuizSolved(true);
+            if (!initialState) setFailureCount(0);
         }
     } else {
         setPrompt('');
@@ -139,8 +147,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         m1Part1Solved,
         m1Part2Solved,
         isQuizSolved,
-        // Save history
-        sideMissionSubmissions: submissionHistory
+        // Save history & stats
+        sideMissionSubmissions: submissionHistory,
+        failureCount
     };
     onBack(progress);
   };
@@ -168,6 +177,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     } else {
         playSfx('error');
         setM1Part1Error(true);
+        setFailureCount(prev => prev + 1);
     }
   };
 
@@ -189,6 +199,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     } else {
         playSfx('error');
         setM1Part2Error(true);
+        setFailureCount(prev => prev + 1);
     }
   };
 
@@ -227,6 +238,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     } else {
         playSfx('error');
         setShowQuizError(true);
+        setFailureCount(prev => prev + 1);
     }
   };
 
@@ -267,6 +279,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         if (!validation.isValid) {
             playSfx('error');
             setLoading(false); // Stop if invalid
+            setFailureCount(prev => prev + 1);
             return;
         }
 
@@ -328,6 +341,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         setResultImage(null);
         setValidationResult(null);
         setPrompt('');
+        // Note: Failure count persists for the session to track total failures
         
     } else {
         playSfx('success');
@@ -350,7 +364,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             m1Part1Solved,
             m1Part2Solved,
             isQuizSolved,
-            sideMissionSubmissions: submissionHistory
+            sideMissionSubmissions: submissionHistory,
+            failureCount
         };
         onComplete(progressData);
     }

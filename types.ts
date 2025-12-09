@@ -68,6 +68,9 @@ export interface PuzzleProgress {
   
   // Side Mission History
   sideMissionSubmissions?: SideMissionSubmission[];
+  
+  // Stats
+  failureCount?: number;
 
   // Solved Status Flags
   m1Part1Solved?: boolean;

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { X, Settings, Volume2, VolumeX, Eye, EyeOff, RotateCcw, Lock, CloudFog, Download, FileText, Copy, Check, MessageSquare, ClipboardCheck } from 'lucide-react';
 
@@ -53,6 +54,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (m1) {
             report += `【任務一：四獸山連線】\n`;
             report += `狀態: ${m1.isQuizSolved ? '已完成' : '進行中'}\n`;
+            report += `失敗/錯誤次數: ${m1.failureCount || 0}\n`;
             if (m1.m1Heights) {
                 report += `[高度測量]\n`;
                 report += `  - 虎山: ${m1.m1Heights.tiger || '-'} m\n`;
@@ -69,6 +71,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const m2 = puzzleProgress?.['2'];
         if (m2) {
             report += `【任務二：岩層解密】\n`;
+            report += `失敗/錯誤次數: ${m2.failureCount || 0}\n`;
             report += `[地層問答]: ${m2.quizInput || '未作答'}\n`;
             report += `[採樣筆記]: ${m2.imageDescription || '未填寫'}\n\n`;
         } else {
@@ -79,6 +82,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const m3 = puzzleProgress?.['3'];
         if (m3) {
             report += `【任務三：等高線挑戰】\n`;
+            report += `失敗/錯誤次數: ${m3.failureCount || 0}\n`;
             report += `[等高線判讀]: 等高線越「${m3.quizSelect1 || '-'}」，爬起來越「${m3.quizSelect2 || '-'}」，坡度感受「${m3.quizSelect3 || '-'}」\n`;
             report += `[路線繪製筆記]: ${m3.imageDescription || '未填寫'}\n\n`;
         } else {
@@ -89,6 +93,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const s1 = puzzleProgress?.['s1'];
         if (s1 && s1.sideMissionSubmissions && s1.sideMissionSubmissions.length > 0) {
             report += `【支線任務：擋土牆獵人】(共 ${s1.sideMissionSubmissions.length} 筆紀錄)\n`;
+            report += `失敗/錯誤次數: ${s1.failureCount || 0}\n`;
             s1.sideMissionSubmissions.forEach((sub: any, idx: number) => {
                 report += `  #${idx + 1} [${new Date(sub.timestamp).toLocaleTimeString()}]: ${sub.description || '無文字說明'}\n`;
             });
