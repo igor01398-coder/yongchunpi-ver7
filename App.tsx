@@ -49,7 +49,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
     fragmentId: 1,
     quiz: {
       question: "請問我們現在在哪一層？",
-      answer: "南港層"
+      answer: "大寮層 或 石底層"
     },
     uploadInstruction: "請拍攝所收集到的砂岩照片即可。",
     type: 'main',

@@ -224,9 +224,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         
         isCorrect = input === target || input.includes(target);
 
-        // Rule for Mission 2: Accept "南港" in the answer
-        if (activePuzzle.id === '2' && input.includes('南港')) {
-            isCorrect = true;
+        // Rule for Mission 2: Accept "大寮" or "石底" in the answer
+        if (activePuzzle.id === '2') {
+             isCorrect = input.includes('大寮') || input.includes('石底');
         }
     }
     
