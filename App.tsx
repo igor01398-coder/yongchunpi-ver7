@@ -39,7 +39,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
   {
     id: '2',
     title: 'Mission 02: 岩層解密',
-    description: '請先回答地質問題，驗證所在地層後，再進行岩層採樣分析。',
+    description: '請先回答地質問題，驗證所在地層後，再進行岩層採樣分析。作答完畢記得把此頁面「截圖」！解完任務後請上傳至回饋單。',
     targetPromptHint: '描述岩石特徵',
     difficulty: 'Geologist',
     xpReward: 300, // Big Mission Reward
@@ -51,7 +51,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
       question: "請問我們現在在哪一層？",
       answer: "大寮層 或 石底層"
     },
-    uploadInstruction: "請拍攝所收集到的砂岩照片即可。",
+    uploadInstruction: "請拍攝所收集到的砂岩照片即可。作答完畢記得把此頁面「截圖」！解完任務後請上傳至回饋單。",
     type: 'main',
     referenceImage: 'https://drive.google.com/uc?export=view&id=1XEaYf4LuoadsCnneUUGQPFBObLRE9ikA',
     referenceCheckImages: [
@@ -62,7 +62,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
   {
     id: '3',
     title: 'Mission 03: 等高線挑戰',
-    description: '請打開Mapy並截圖，在截圖上畫出爬上永春崗平台的路線，同時觀察Mapy裡的等高線圖',
+    description: '請打開Mapy並截圖，在截圖上畫出爬上永春崗平台的路線，同時觀察Mapy裡的等高線圖。作答完畢記得把此頁面「截圖」！解完任務後請上傳至回饋單。',
     targetPromptHint: 'Project holographic red contour lines onto the terrain, high density on steep slopes',
     difficulty: 'Expert',
     xpReward: 300, // Big Mission Reward
@@ -74,7 +74,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
       question: "爬完的感受？",
       answer: "等高線越密集，爬起來越累 或 稀疏→不累"
     },
-    uploadInstruction: "上傳您的Mapy截圖，並繪製路線。",
+    uploadInstruction: "上傳您的Mapy截圖，並繪製路線。作答完畢記得把此頁面「截圖」！解完任務後請上傳至回饋單。",
     type: 'main',
     referenceImage: 'https://drive.google.com/uc?export=view&id=1h1z0gNtdVvAfhZr_DqhbYAZJk3dxj0zL'
   }
