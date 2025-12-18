@@ -27,7 +27,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
     fragmentId: 0,
     type: 'main',
     quiz: {
-      question: "請對照Mapy，填入四獸山的高度",
+      question: "請對照Mapy，回答下列問題",
       answer: "138,141,151,183"
     },
     referenceImage: 'https://drive.google.com/uc?export=view&id=1-UVds4tg7gQxZo19uTgqyvfTwmEwI3c8',
