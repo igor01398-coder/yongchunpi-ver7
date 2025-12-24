@@ -7,6 +7,8 @@ import { IntroScreen } from './components/IntroScreen';
 import { EncyclopediaModal } from './components/EncyclopediaModal';
 import { PlayerProfileModal } from './components/PlayerProfileModal';
 import { SettingsModal } from './components/SettingsModal';
+import { ManualModal } from './components/ManualModal';
+import { TreasureMapModal } from './components/TreasureMapModal';
 import { WeatherWidget } from './components/WeatherWidget';
 import { playSfx, setSfxEnabled } from './services/audioService';
 import { User, Satellite, LifeBuoy, BookOpen, X, Mountain, Info, ClipboardList, ChevronRight, CloudFog, MapPin, CheckCircle, AlertTriangle, Book, Clock, RotateCcw, Settings, Lock, ExternalLink } from 'lucide-react';
@@ -109,19 +111,6 @@ const INITIAL_STATS: PlayerStats = {
   sosCount: 1
 };
 
-const TUTORIAL_STEPS = [
-    {
-        title: '行動提示',
-        desc: '前方環境不穩定。再過 20 分鐘，探險迷霧就會降臨！',
-        icon: <CloudFog className="w-10 h-10 text-teal-600" />
-    },
-    {
-        title: '線索目標',
-        desc: '在地圖上找找看「任務標記」！點擊以開始。',
-        icon: <MapPin className="w-10 h-10 text-amber-600" />
-    }
-];
-
 const STORAGE_KEY = 'yongchun_save_v1';
 
 const App: React.FC = () => {
@@ -163,8 +152,6 @@ const App: React.FC = () => {
   const [gpsStatus, setGpsStatus] = useState<'searching' | 'locked' | 'error'>('searching');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [gpsRetryTrigger, setGpsRetryTrigger] = useState<number>(0);
-  const [showTutorial, setShowTutorial] = useState<boolean>(false);
-  const [tutorialStep, setTutorialStep] = useState<number>(0);
   const [collectedFragments, setCollectedFragments] = useState<number[]>(initialSaveData?.collectedFragments || []);
   const [completedPuzzleIds, setCompletedPuzzleIds] = useState<string[]>(initialSaveData?.completedPuzzleIds || []);
   const [startTime, setStartTime] = useState<Date | null>(initialSaveData?.startTime || null);
@@ -218,7 +205,6 @@ const App: React.FC = () => {
     setStartTime(new Date()); 
     playSfx('start');
     setView(AppView.HOME);
-    setShowTutorial(true);
   };
 
   const handleContinue = () => { playSfx('start'); setView(AppView.HOME); };
@@ -246,7 +232,6 @@ const App: React.FC = () => {
       });
   };
 
-  // handleEditorBack handles returning from the editor view while preserving progress
   const handleEditorBack = (progress: PuzzleProgress) => {
     if (activePuzzle) {
         setPuzzleProgress(prev => ({ ...prev, [activePuzzle.id]: progress }));
@@ -282,7 +267,6 @@ const App: React.FC = () => {
             <div className="absolute top-0 left-0 right-0 z-[500] p-2 sm:p-4 pointer-events-none">
                 <div className="flex justify-between items-start gap-2 max-w-full">
                     
-                    {/* Compact Profile Card */}
                     <button 
                         onClick={() => setShowProfile(true)}
                         className="bg-white/90 backdrop-blur border border-slate-200 p-2 sm:p-3 rounded-lg pointer-events-auto shadow-lg text-left hover:scale-105 active:scale-95 transition-transform flex-[0_1_auto] max-w-[42%] min-w-0"
@@ -301,7 +285,6 @@ const App: React.FC = () => {
                         </div>
                     </button>
 
-                    {/* Compact System Info Cluster */}
                     <div className="flex flex-col items-end gap-1.5 flex-[1_1_auto] max-w-[58%] min-w-0 pointer-events-auto">
                         <div className="flex items-center justify-end gap-1 flex-wrap">
                             <button 
@@ -356,6 +339,8 @@ const App: React.FC = () => {
             {showSettings && <SettingsModal onClose={() => setShowSettings(false)} isSfxEnabled={isSfxEnabledState} onToggleSfx={setIsSfxEnabledState} isFogEnabled={isFogEnabled} onToggleFog={() => setIsFogEnabled(!isFogEnabled)} isFogTimeReached={isFogTimeReached} onResetGame={() => localStorage.removeItem(STORAGE_KEY)} />}
             {showProfile && <PlayerProfileModal onClose={() => setShowProfile(false)} playerStats={playerStats} teamName={teamName} missionDuration={missionDuration} startTime={startTime} endTime={endTime} collectedFragments={collectedFragments} completedPuzzleCount={completedPuzzleIds.length} />}
             {showEncyclopedia && <EncyclopediaModal onClose={() => setShowEncyclopedia(false)} completedPuzzleIds={completedPuzzleIds} />}
+            {showManual && <ManualModal onClose={() => setShowManual(false)} />}
+            {showTreasureMap && <TreasureMapModal onClose={() => setShowTreasureMap(false)} collectedFragments={collectedFragments} />}
             {showSideMissions && (
                 <div className="absolute inset-0 z-[1000] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-md rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
