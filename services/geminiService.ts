@@ -2,7 +2,8 @@
 import { GoogleGenAI } from "@google/genai";
 
 const GEMINI_MODEL = 'gemini-2.5-flash-image';
-const GEMINI_VALIDATION_MODEL = 'gemini-2.5-flash';
+// gemini-3-flash-preview is recommended for Basic Text Tasks like validation
+const GEMINI_VALIDATION_MODEL = 'gemini-3-flash-preview';
 
 // Helper to convert file to base64
 export const fileToGenerativePart = async (file: File): Promise<string> => {

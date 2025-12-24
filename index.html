@@ -1,8 +1,9 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>永春陂地質調查 Yongchun Pi Explorer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -20,27 +21,32 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #f8fafc; /* Slate 50/White - Light Mode */
-        color: #0f172a; /* Slate 900 - Dark Text */
-        overflow: hidden; /* Prevent body scroll for map */
+        background-color: #f8fafc;
+        color: #0f172a;
+        margin: 0;
+        padding: 0;
+        height: 100dvh;
+        width: 100vw;
+        overflow: hidden;
+        touch-action: manipulation;
+      }
+      #root {
+        height: 100%;
+        width: 100%;
       }
       h1, h2, h3, .font-mono {
         font-family: 'Share Tech Mono', monospace;
       }
       /* Custom Scrollbar */
       ::-webkit-scrollbar {
-        width: 8px;
+        width: 6px;
       }
       ::-webkit-scrollbar-track {
         background: #f1f5f9; 
       }
       ::-webkit-scrollbar-thumb {
         background: #cbd5e1; 
-        border-radius: 4px;
-        border: 1px solid #e2e8f0;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #94a3b8; 
+        border-radius: 3px;
       }
       /* Leaflet Customization */
       .leaflet-container {
@@ -49,12 +55,6 @@
       .custom-marker-icon {
         background: transparent;
         border: none;
-      }
-      /* Fog of War Blur Effect */
-      .fog-of-war {
-        filter: blur(20px);
-        -webkit-filter: blur(20px);
-        transition: opacity 0.5s ease;
       }
     </style>
   <script type="importmap">
@@ -73,7 +73,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <!-- Vite Entry Point -->
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
