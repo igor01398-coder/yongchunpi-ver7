@@ -1,7 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { editImageWithGemini, fileToGenerativePart, validateImage } from '../services/geminiService';
-// FIX: Use relative path
 import { playSfx } from '../services/audioService';
 import { Loader2, ArrowLeft, Upload, Camera, RefreshCw, Terminal, ChevronRight, CheckCircle, HelpCircle, AlertTriangle, ClipboardList, PartyPopper, Image as ImageIcon, ShieldCheck, Check, X, FolderOpen, ExternalLink, ScanSearch, Lightbulb, Map, History } from 'lucide-react';
 import { Puzzle, PuzzleProgress, SideMissionSubmission } from '../types';
@@ -9,7 +8,7 @@ import { Puzzle, PuzzleProgress, SideMissionSubmission } from '../types';
 interface ImageEditorProps {
   activePuzzle: Puzzle | null;
   onBack: (progress: PuzzleProgress) => void;
-  onComplete?: (data?: PuzzleProgress) => void;
+  onComplete?: (data?: PuzzleProgress, stayOnScreen?: boolean) => void;
   onSideMissionProgress?: (submission: SideMissionSubmission) => void;
   onFieldSolved?: () => void;
   initialState?: PuzzleProgress;
@@ -311,8 +310,24 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     fileInputRef.current?.click();
   };
 
-  // Triggered when user clicks "Transmit Data" or manual pass
+  // Triggered when user clicks "Transmit Data" or manual pass (via Auto-complete effect)
   const handlePreComplete = () => {
+    const progressData: PuzzleProgress = {
+        m1Heights,
+        m1Reason,
+        quizInput,
+        quizSelect1,
+        quizSelect2,
+        quizSelect3,
+        imageDescription: prompt,
+        uploadedImage: originalImage,
+        m1Part1Solved,
+        m1Part2Solved,
+        isQuizSolved,
+        sideMissionSubmissions: submissionHistory,
+        failureCount
+    };
+
     if (activePuzzle?.type === 'side') {
         if (!originalImage) return;
 
@@ -341,15 +356,29 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         setResultImage(null);
         setValidationResult(null);
         setPrompt('');
-        // Note: Failure count persists for the session to track total failures
         
     } else {
         playSfx('success');
-        setShowSuccessModal(true);
+        // For Main Missions (like Mission 2), we do NOT show a modal that forces a leave.
+        // Instead, we mark it as complete locally by calling onComplete with stayOnScreen=true
+        // This locks the UI into "Completed" state but keeps the answers visible.
+        if (onComplete) onComplete(progressData, true);
     }
   };
 
-  // Triggered when user clicks "Yay" in modal
+  // Auto-complete Effect for Main Missions (M2, M3)
+  useEffect(() => {
+    // Logic: If Main Mission (not side), Not yet completed, Quiz Solved, and Image Validated -> Auto Complete
+    if (activePuzzle?.type !== 'side' && !isCompleted && isQuizSolved && validationResult?.isValid) {
+        // Use a small timeout to allow UI to update (e.g. show validation success tick) before completing
+        const timer = setTimeout(() => {
+           handlePreComplete();
+        }, 1000); // 1s delay to see the green checkmark/feedback
+        return () => clearTimeout(timer);
+    }
+  }, [validationResult, isQuizSolved, isCompleted, activePuzzle]);
+
+  // Triggered when user clicks "Yay" in modal (Still used for Side Mission Milestone or if triggered)
   const handleFinalExit = () => {
     if (onComplete) {
         const progressData: PuzzleProgress = {
@@ -367,7 +396,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             sideMissionSubmissions: submissionHistory,
             failureCount
         };
-        onComplete(progressData);
+        onComplete(progressData, false);
     }
   };
 
@@ -703,15 +732,17 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         {activePuzzle?.id === '1' && isQuizSolved && !isCompleted && (
             <button
                 onClick={handlePreComplete}
-                className="w-full bg-teal-600 hover:bg-teal-500 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500"
+                className="w-full bg-teal-600 hover:bg-teal-500 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg animate-in fade-in slide-in-from-bottom-4"
             >
                 <CheckCircle className="w-6 h-6" />
                 <span>COMPLETE MISSION</span>
             </button>
         )}
         
-        {isCompleted && activePuzzle?.id === '1' && (
-             <div className="w-full bg-slate-100 text-slate-500 py-4 rounded-lg font-mono font-bold text-center uppercase tracking-widest border border-slate-200">
+        {/* Unified Completed Banner for All Main Missions */}
+        {isCompleted && activePuzzle?.type !== 'side' && (
+             <div className="w-full bg-slate-100 text-slate-500 py-4 rounded-lg font-mono font-bold text-center uppercase tracking-widest border border-slate-200 flex items-center justify-center gap-2">
+                <CheckCircle className="w-5 h-5 text-teal-500" />
                 MISSION COMPLETED
             </div>
         )}
@@ -721,7 +752,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-forwards">
                 
                 {/* Secondary Instruction (If exists) */}
-                {!originalImage && activePuzzle?.uploadInstruction && (
+                {!originalImage && activePuzzle?.uploadInstruction && !isCompleted && (
                     <div className={`border-l-2 p-4 rounded-r ${activePuzzle.type === 'side' ? 'bg-indigo-50 border-indigo-500' : 'bg-amber-50 border-amber-500'}`}>
                          <h4 className={`font-bold text-sm mb-1 font-mono flex items-center gap-2 ${activePuzzle.type === 'side' ? 'text-indigo-600' : 'text-amber-700'}`}>
                             <ImageIcon className="w-4 h-4" /> 
@@ -890,13 +921,19 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                          {!isCompleted && validationResult?.isValid && (
                             <>
                                 {( (activePuzzle?.id !== '2' && activePuzzle?.id !== '3') || isQuizSolved) ? (
+                                    activePuzzle?.type === 'side' ? (
                                      <button
                                         onClick={handlePreComplete}
-                                        className={`w-full hover:opacity-90 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg mt-4 animate-in fade-in slide-in-from-bottom-2 ${activePuzzle?.type === 'side' ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-teal-600 hover:bg-teal-500'}`}
+                                        className="w-full hover:opacity-90 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg mt-4 animate-in fade-in slide-in-from-bottom-2 bg-indigo-600 hover:bg-indigo-500"
                                      >
                                         <CheckCircle className="w-6 h-6" />
-                                        <span>{activePuzzle?.type === 'side' ? `UPLOAD & CONTINUE (${submissionHistory.length + 1})` : 'TRANSMIT DATA'}</span>
+                                        <span>UPLOAD & CONTINUE ({submissionHistory.length + 1})</span>
                                      </button>
+                                    ) : (
+                                        <div className="mt-4 text-center text-teal-600 font-mono text-xs animate-pulse font-bold tracking-widest bg-teal-50 py-3 rounded-lg border border-teal-100">
+                                            VERIFIED. UPLOADING DATA...
+                                        </div>
+                                    )
                                 ) : (
                                     <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-800 text-sm font-mono flex items-center gap-2 animate-pulse">
                                         <AlertTriangle className="w-4 h-4" />

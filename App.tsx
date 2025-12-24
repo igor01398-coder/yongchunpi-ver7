@@ -240,21 +240,40 @@ const App: React.FC = () => {
     setActivePuzzle(null);
   };
 
-  const handleImageComplete = (progressData?: PuzzleProgress) => {
+  const handleImageComplete = (progressData?: PuzzleProgress, stayOnScreen: boolean = false) => {
     if (activePuzzle) {
+        const puzzleId = activePuzzle.id;
+        const fragmentId = activePuzzle.fragmentId;
+        const puzzleType = activePuzzle.type;
+
         if (progressData) {
-            setPuzzleProgress(prev => ({ ...prev, [activePuzzle.id]: progressData }));
+            setPuzzleProgress(prev => ({ ...prev, [puzzleId]: progressData }));
         }
-        if (!completedPuzzleIds.includes(activePuzzle.id) && activePuzzle.type !== 'side') {
-            const newCompletedIds = [...new Set([...completedPuzzleIds, activePuzzle.id])];
+
+        if (!completedPuzzleIds.includes(puzzleId) && puzzleType !== 'side') {
+            const newCompletedIds = [...completedPuzzleIds, puzzleId];
             setCompletedPuzzleIds(newCompletedIds);
-            if (activePuzzle.fragmentId !== -1) setCollectedFragments(prev => [...new Set([...prev, activePuzzle.fragmentId])]);
-            if (newCompletedIds.length === 3) setEndTime(new Date());
+            
+            if (fragmentId !== -1) {
+                setCollectedFragments(prev => Array.from(new Set([...prev, fragmentId])));
+            }
+            
+            if (newCompletedIds.length === 3) {
+                setEndTime(new Date());
+            }
         }
-        setView(AppView.HOME);
-        setActivePuzzle(null);
+        
+        // If stayOnScreen is true (e.g. Mission 2), we don't switch view.
+        // The completedPuzzleIds update above will trigger a re-render in ImageEditor
+        // which will update the UI to "Completed" state.
+        if (!stayOnScreen) {
+            setActivePuzzle(null);
+            setView(AppView.HOME);
+        }
     }
   };
+
+  const xpPercentage = Math.min(((playerStats.currentXp % playerStats.nextLevelXp) / playerStats.nextLevelXp) * 100, 100);
 
   return (
     <div className="h-[100dvh] w-screen bg-slate-50 text-slate-900 overflow-hidden flex flex-col font-sans relative">
@@ -266,7 +285,6 @@ const App: React.FC = () => {
         <>
             <div className="absolute top-0 left-0 right-0 z-[500] p-2 sm:p-4 pointer-events-none">
                 <div className="flex justify-between items-start gap-2 max-w-full">
-                    
                     <button 
                         onClick={() => setShowProfile(true)}
                         className="bg-white/90 backdrop-blur border border-slate-200 p-2 sm:p-3 rounded-lg pointer-events-auto shadow-lg text-left hover:scale-105 active:scale-95 transition-transform flex-[0_1_auto] max-w-[42%] min-w-0"
@@ -280,35 +298,23 @@ const App: React.FC = () => {
                                 <div className="font-bold font-mono text-teal-700 truncate text-xs sm:text-base leading-none">{teamName}</div>
                             </div>
                         </div>
-                        <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden mt-1 sm:mt-2">
-                            <div className="h-full bg-teal-500" style={{ width: `${(playerStats.currentXp % 500) / 5} %` }}></div>
+                        <div className="w-full h-1.5 bg-slate-200/50 rounded-full overflow-hidden mt-1 sm:mt-2">
+                            <div className="h-full bg-teal-500 transition-all duration-500 ease-out" style={{ width: `${xpPercentage}%` }}></div>
                         </div>
                     </button>
 
                     <div className="flex flex-col items-end gap-1.5 flex-[1_1_auto] max-w-[58%] min-w-0 pointer-events-auto">
                         <div className="flex items-center justify-end gap-1 flex-wrap">
-                            <button 
-                                onClick={() => setGpsRetryTrigger(p => p + 1)}
-                                className={`backdrop-blur border px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm transition-all ${
-                                gpsStatus === 'locked' ? 'bg-teal-50/90 border-teal-200' : 
-                                gpsStatus === 'error' ? 'bg-rose-50/90 border-rose-200' : 'bg-amber-50/90 border-amber-200'
-                            }`}>
+                            <button onClick={() => setGpsRetryTrigger(p => p + 1)} className={`backdrop-blur border px-2 py-0.5 rounded-full flex items-center gap-1.5 shadow-sm transition-all ${gpsStatus === 'locked' ? 'bg-teal-50/90 border-teal-200' : gpsStatus === 'error' ? 'bg-rose-50/90 border-rose-200' : 'bg-amber-50/90 border-amber-200'}`}>
                                 <Satellite className={`w-3 h-3 ${gpsStatus === 'locked' ? 'text-teal-600' : 'text-amber-600 animate-pulse'}`} />
-                                <span className="text-[10px] font-mono font-bold whitespace-nowrap text-slate-700">
-                                    {gpsStatus === 'locked' && gpsAccuracy ? `±${Math.round(gpsAccuracy)}m` : 'GPS'}
-                                </span>
+                                <span className="text-[10px] font-mono font-bold whitespace-nowrap text-slate-700">{gpsStatus === 'locked' && gpsAccuracy ? `±${Math.round(gpsAccuracy)}m` : 'GPS'}</span>
                             </button>
-
                             <WeatherWidget />
-                            
                             <div className="backdrop-blur bg-white/90 border border-slate-200 px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1.5">
                                 <Clock className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span className="text-[10px] font-mono text-slate-600">
-                                    {currentTime.toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit', hour12: false})}
-                                </span>
+                                <span className="text-[10px] font-mono text-slate-600">{currentTime.toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit', hour12: false})}</span>
                             </div>
                         </div>
-
                         <div className="flex gap-2">
                              <button onClick={() => setShowSettings(true)} className="p-2 bg-white border border-slate-300 text-slate-500 rounded-full hover:bg-slate-50 shadow-sm"><Settings className="w-4 h-4" /></button>
                              <button onClick={() => setShowManual(true)} className="p-2 bg-white border border-slate-300 text-slate-500 rounded-full hover:bg-slate-50 shadow-sm"><Info className="w-4 h-4" /></button>
@@ -318,6 +324,7 @@ const App: React.FC = () => {
             </div>
 
             <GameMap 
+                key="yongchun-main-map"
                 puzzles={SAMPLE_PUZZLES} 
                 onPuzzleSelect={handlePuzzleSelect}
                 fogEnabled={isFogEnabled && isFogTimeReached} 

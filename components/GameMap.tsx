@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Puzzle } from '../types';
-import { Navigation, Globe, Map as MapIcon, Layers, Play } from 'lucide-react';
+import { Navigation, Globe, Map as MapIcon, Layers, Play, Loader2 } from 'lucide-react';
 
 // Declare Leaflet types since we are loading it via script tag
 declare global {
@@ -14,7 +14,7 @@ interface GameMapProps {
   puzzles: Puzzle[];
   onPuzzleSelect: (puzzle: Puzzle) => void;
   fogEnabled: boolean;
-  fogOpacity: number; // New prop for gradual fade
+  fogOpacity: number;
   onGpsStatusChange: (status: 'searching' | 'locked' | 'error', accuracy?: number) => void;
   completedPuzzleIds: string[];
   gpsRetryTrigger?: number;
@@ -73,132 +73,286 @@ function getDistance(lat1: number, lng1: number, lat2: number, lng2: number) {
 
     return R * c;
 }
-// ------------------------
+
+// Helper to safely remove layer to avoid _leaflet_pos errors
+const safeRemoveLayer = (map: any, layer: any) => {
+    if (!map || !layer) return;
+    try {
+        // Only attempt removal if map is valid and has the layer
+        if (map._mapPane && map.hasLayer(layer)) {
+            map.removeLayer(layer);
+        }
+    } catch (e) {
+        // Suppress errors during cleanup
+    }
+};
 
 export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEnabled, fogOpacity, onGpsStatusChange, completedPuzzleIds, gpsRetryTrigger = 0 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
+  const isMountedRef = useRef(true);
+  
+  // Use state for map instance to ensure dependent effects wait for it
+  const [mapInstance, setMapInstance] = useState<any>(null);
+  // Ref to track if initialization has started/completed to prevent double-init in Strict Mode
+  const isInitializedRef = useRef(false);
+
   const userMarkerRef = useRef<any>(null);
   const accuracyCircleRef = useRef<any>(null);
   const fogLayerRef = useRef<any>(null);
-  
-  // Use a ref for the callback to avoid re-running the main useEffect
-  const onGpsStatusChangeRef = useRef(onGpsStatusChange);
-  useEffect(() => {
-      onGpsStatusChangeRef.current = onGpsStatusChange;
-  }, [onGpsStatusChange]);
-
-  const hasCenteredRef = useRef<boolean>(false);
-  
-  // Auto-Follow State Logic
-  const [isAutoFollow, setIsAutoFollow] = useState<boolean>(true);
-  const isAutoFollowRef = useRef<boolean>(true); // Ref for geolocation callback usage
-
-  // Sync Ref with State
-  useEffect(() => {
-    isAutoFollowRef.current = isAutoFollow;
-  }, [isAutoFollow]);
-
-  const userPosRef = useRef<{lat: number, lng: number} | null>(null); // Ref to access userPos in callbacks
-  
-  // We store both mission markers and arrow markers
+  // Store markers in an object to track them by ID/Name
+  const landmarksRef = useRef<{[key: string]: any}>({});
   const markersRef = useRef<{[key: string]: any}>({}); 
   const arrowsRef = useRef<{[key: string]: any}>({});
 
+  const [isAutoFollow, setIsAutoFollow] = useState<boolean>(true);
   const [userPos, setUserPos] = useState<{lat: number, lng: number} | null>(null);
-  const [showMapLinks, setShowMapLinks] = useState<boolean>(false);
-  
-  // Selection State
   const [selectedPuzzleId, setSelectedPuzzleId] = useState<string | null>(null);
-
-  // Sync ref with state
-  useEffect(() => {
-    userPosRef.current = userPos;
-  }, [userPos]);
-
-  // Track latest fogOpacity for animation loop without triggering re-renders
-  const currentFogOpacity = useRef(fogOpacity);
-  useEffect(() => {
-      currentFogOpacity.current = fogOpacity;
-  }, [fogOpacity]);
-
-  // External URLs
-  const URL_GEOMAP = "https://geomap.gsmma.gov.tw/gwh/gsb97-1/sys8a/t3/index1.cfm";
-  const URL_MAPY = "https://mapy.com/en/zakladni?l=0&x=121.6019818&y=25.0414134&z=14";
 
   const DEFAULT_LAT = 25.031546843359315;
   const DEFAULT_LNG = 121.57944711977618;
 
-  // Handle Device Orientation for User Marker Arrow
+  // Track mount state
   useEffect(() => {
+    isMountedRef.current = true;
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  // 1. Initialization Hook
+  useEffect(() => {
+    if (!mapContainerRef.current || !window.L) return;
+    
+    // Prevent double initialization check if Leaflet already attached to this element
+    if ((mapContainerRef.current as any)._leaflet_id) {
+        return; 
+    }
+    
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
+    let retryCount = 0;
+    const maxRetries = 20;
+
+    // Initialization logic wrapped in a function to allow retries
+    const tryInitMap = () => {
+        if (!isMountedRef.current) return;
+        if (!mapContainerRef.current) return;
+
+        // CRITICAL FIX: Wait for container to have height
+        // If clientHeight is 0, Leaflet cannot calculate tile positions, resulting in a grey/blank map.
+        if (mapContainerRef.current.clientHeight === 0 && retryCount < maxRetries) {
+            retryCount++;
+            // Retry quickly
+            setTimeout(tryInitMap, 50);
+            return;
+        }
+
+        try {
+            // Initialize Map
+            const map = window.L.map(mapContainerRef.current, {
+              center: [DEFAULT_LAT, DEFAULT_LNG],
+              zoom: 16,
+              zoomControl: false,
+              attributionControl: false,
+              fadeAnimation: false, 
+              zoomAnimation: false, // Disable to prevent _leaflet_pos errors during unmounts/updates
+              markerZoomAnimation: false // Disable to prevent _leaflet_pos errors
+            });
+
+            map.on('dragstart', () => setIsAutoFollow(false));
+            map.on('click', () => setSelectedPuzzleId(null));
+
+            window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+              maxZoom: 19,
+              subdomains: 'abcd'
+            }).addTo(map);
+
+            if (isMountedRef.current) {
+                setMapInstance(map);
+            }
+
+            // Force Leaflet to re-calculate size immediately and after a delay to ensure full rendering
+            map.invalidateSize();
+            setTimeout(() => { if (isMountedRef.current) map.invalidateSize(); }, 200);
+            setTimeout(() => { if (isMountedRef.current) map.invalidateSize(); }, 500);
+
+        } catch (e) {
+            console.error("Map initialization failed", e);
+        }
+    };
+
+    // Use a small delay to ensure the container is mounted in DOM
+    const initTimer = setTimeout(tryInitMap, 100);
+
+    return () => {
+      clearTimeout(initTimer);
+      isInitializedRef.current = false;
+    };
+  }, []); // Run only once on mount
+
+  // 1.5 Map Instance Management (Resize & Cleanup)
+  useEffect(() => {
+    if (!mapInstance || !mapContainerRef.current) return;
+
+    const handleResize = () => {
+        if (mapInstance && mapInstance._mapPane) mapInstance.invalidateSize();
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+        requestAnimationFrame(handleResize);
+    });
+    
+    if (mapContainerRef.current) {
+        resizeObserver.observe(mapContainerRef.current);
+    }
+
+    // Multiple invalidation triggers to ensure map renders correctly after transitions
+    const t1 = setTimeout(handleResize, 100);
+    const t2 = setTimeout(handleResize, 300);
+    const t3 = setTimeout(handleResize, 600);
+
+    return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+        resizeObserver.disconnect();
+        
+        // Cleanup map instance on unmount
+        if (mapInstance) {
+            try {
+                mapInstance.off(); // Remove all event listeners
+                mapInstance.remove(); // Destroy map
+            } catch (e) {
+                console.warn("Map removal error:", e);
+            }
+        }
+        if (isMountedRef.current) {
+             setMapInstance(null);
+        }
+    };
+  }, [mapInstance]);
+
+  // 2. GPS & User Marker Hook
+  useEffect(() => {
+    if (!mapInstance || !window.L) return;
+
+    let hasCentered = false;
+
+    const updateUserPosition = (lat: number, lng: number, accuracy?: number) => {
+        if (!isMountedRef.current) return;
+        setUserPos({ lat, lng });
+
+        // Ensure map hasn't been destroyed
+        if (!mapInstance || !mapInstance._mapPane) return;
+
+        try {
+            if (!userMarkerRef.current) {
+                const icon = window.L.divIcon({
+                    className: 'user-marker',
+                    html: `
+                      <div class="relative flex items-center justify-center w-12 h-12">
+                         <div id="user-heading-arrow" class="absolute w-full h-full flex items-center justify-center transition-transform duration-200" style="transform: rotate(0deg);">
+                            <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[12px] border-b-blue-500" style="margin-bottom: 24px;"></div>
+                         </div>
+                         <div class="absolute w-4 h-4 bg-blue-400 rounded-full animate-ping opacity-75"></div>
+                         <div class="relative w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-md z-10"></div>
+                      </div>
+                    `,
+                    iconSize: [48, 48],
+                    iconAnchor: [24, 24]
+                });
+                userMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(mapInstance);
+            } else {
+                if (mapInstance.hasLayer(userMarkerRef.current)) {
+                    userMarkerRef.current.setLatLng([lat, lng]);
+                } else {
+                    userMarkerRef.current.addTo(mapInstance);
+                    userMarkerRef.current.setLatLng([lat, lng]);
+                }
+            }
+
+            if (accuracy !== undefined) {
+                if (!accuracyCircleRef.current) {
+                    accuracyCircleRef.current = window.L.circle([lat, lng], { radius: accuracy, color: '#3b82f6', fillOpacity: 0.15, weight: 1, interactive: false }).addTo(mapInstance);
+                } else {
+                    if (mapInstance.hasLayer(accuracyCircleRef.current)) {
+                        accuracyCircleRef.current.setLatLng([lat, lng]);
+                        accuracyCircleRef.current.setRadius(accuracy);
+                    } else {
+                        accuracyCircleRef.current.addTo(mapInstance);
+                    }
+                }
+            }
+
+            // Only auto-center on first fix or if auto-follow is active
+            if (!hasCentered) {
+                mapInstance.setView([lat, lng], 17);
+                hasCentered = true;
+            } else if (isAutoFollow) {
+                mapInstance.panTo([lat, lng]);
+            }
+        } catch (e) {
+            console.warn("Error updating user position:", e);
+        }
+    };
+
+    if (!navigator.geolocation) {
+        if (isMountedRef.current) onGpsStatusChange('error');
+        updateUserPosition(DEFAULT_LAT, DEFAULT_LNG);
+        return;
+    }
+
+    if (isMountedRef.current) onGpsStatusChange('searching');
+    
+    const watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+            if (isMountedRef.current) onGpsStatusChange('locked', pos.coords.accuracy);
+            updateUserPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+        },
+        () => {
+            if (isMountedRef.current) onGpsStatusChange('error');
+            updateUserPosition(DEFAULT_LAT, DEFAULT_LNG);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+
+    // Orientation Handler
     const handleOrientation = (event: DeviceOrientationEvent) => {
       let heading = 0;
       if ((event as any).webkitCompassHeading) {
-        // iOS
         heading = (event as any).webkitCompassHeading;
       } else if (event.alpha !== null) {
-        // Android (absolute if available, else relative)
         heading = 360 - event.alpha;
       }
-      
       const arrow = document.getElementById('user-heading-arrow');
       if (arrow) {
           arrow.style.transform = `rotate(${heading}deg)`;
       }
     };
-
     if (window.DeviceOrientationEvent) {
         window.addEventListener('deviceorientation', handleOrientation);
     }
+
     return () => {
+        navigator.geolocation.clearWatch(watchId);
         window.removeEventListener('deviceorientation', handleOrientation);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!mapContainerRef.current) return;
-    if (mapInstanceRef.current) return;
-
-    // Initialize Leaflet Map
-    const map = window.L.map(mapContainerRef.current, {
-      center: [DEFAULT_LAT, DEFAULT_LNG],
-      zoom: 16,
-      zoomControl: false,
-      attributionControl: false
-    });
-
-    // Disable following when user manually drags the map
-    map.on('dragstart', () => {
-        setIsAutoFollow(false);
-    });
-
-    // Deselect on map click
-    map.on('click', () => {
-        setSelectedPuzzleId(null);
-    });
-
-    // Light Mode Tiles (CartoDB Light)
-    window.L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-      subdomains: 'abcd',
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    }).addTo(map);
-
-    mapInstanceRef.current = map;
-  }, []);
-
-  // Update Fog Logic & Landmarks Visibility (Geometry Updates)
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-    const map = mapInstanceRef.current;
-
-    // 1. Handle Landmarks (Four Beasts)
-    // Cleanup existing landmarks first
-    map.eachLayer((layer: any) => {
-        if (layer.options && (layer.options.className === 'landmark-label' || (layer.options.icon && layer.options.icon.options.className === 'landmark-label'))) {
-            map.removeLayer(layer);
+        // Clean up markers safely
+        try {
+            if (mapInstance && mapInstance._mapPane) {
+                safeRemoveLayer(mapInstance, userMarkerRef.current);
+                safeRemoveLayer(mapInstance, accuracyCircleRef.current);
+            }
+        } catch (e) {
+            // Ignore errors during unmount
         }
-    });
+        userMarkerRef.current = null;
+        accuracyCircleRef.current = null;
+    };
+  }, [mapInstance, gpsRetryTrigger, isAutoFollow]);
+
+  // 3. Landmarks & Fog Logic Hook
+  useEffect(() => {
+    if (!mapInstance || !window.L) return;
+    if (!mapInstance._mapPane) return;
 
     const LANDMARKS = [
       { name: '虎山', height: 142, lat: 25.031571054733273, lng: 121.58361867008533 },
@@ -206,6 +360,9 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
       { name: '獅山', height: 150, lat: 25.026732268016207, lng: 121.58067762839389 },
       { name: '象山', height: 184, lat: 25.02788330197117, lng: 121.5762413424949 }
     ];
+
+    // Manage Landmarks Visibility using a Set to track what should be visible
+    const activeLandmarks = new Set<string>();
 
     LANDMARKS.forEach(lm => {
         let isVisible = true;
@@ -215,255 +372,111 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
         }
 
         if (isVisible) {
-            const icon = window.L.divIcon({
-                className: 'landmark-label',
-                html: `<div class="flex flex-col items-center justify-center">
-                        <div class="w-2 h-2 bg-slate-600 rounded-full ring-2 ring-white"></div>
-                        <span class="mt-1 text-[10px] font-bold text-slate-700 bg-white/80 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap border border-slate-200">${lm.name}</span>
-                    </div>`,
-                iconSize: [40, 40],
-                iconAnchor: [20, 5] 
-            });
+            activeLandmarks.add(lm.name);
             
-            const marker = window.L.marker([lm.lat, lm.lng], { 
-                icon, 
-                interactive: true, 
-                zIndexOffset: 400 
-            });
+            try {
+                // Create if not exists
+                if (!landmarksRef.current[lm.name]) {
+                    const icon = window.L.divIcon({
+                        className: 'landmark-label',
+                        html: `<div class="flex flex-col items-center justify-center">
+                                <div class="w-2 h-2 bg-slate-600 rounded-full ring-2 ring-white"></div>
+                                <span class="mt-1 text-[10px] font-bold text-slate-700 bg-white/80 px-1.5 py-0.5 rounded shadow-sm whitespace-nowrap border border-slate-200">${lm.name}</span>
+                            </div>`,
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 5] 
+                    });
+                    
+                    const marker = window.L.marker([lm.lat, lm.lng], { icon, interactive: true, zIndexOffset: 400 });
+                    marker.on('click', () => {
+                        const isMission1Complete = completedPuzzleIds.includes('1');
+                        const heightText = isMission1Complete 
+                            ? `<span class="text-teal-600 font-bold">高度: ${lm.height}m</span>` 
+                            : `<span class="text-slate-400">高度: ???</span>`;
 
-            marker.on('click', () => {
-                const isMission1Complete = completedPuzzleIds.includes('1');
-                const heightText = isMission1Complete 
-                    ? `<span class="text-teal-600">高度: ${lm.height}m</span>` 
-                    : `<span class="text-slate-400">高度: ???</span>`;
-
-                window.L.popup({
-                    offset: [0, -10],
-                    className: 'landmark-popup',
-                    closeButton: false,
-                    autoClose: true
-                })
-                .setLatLng([lm.lat, lm.lng])
-                .setContent(`<div class="text-center font-sans font-bold text-slate-700 text-xs">${lm.name}<br/>${heightText}</div>`)
-                .openOn(map);
-            });
-
-            marker.addTo(map);
+                        window.L.popup({ offset: [0, -10], closeButton: false })
+                            .setLatLng([lm.lat, lm.lng])
+                            .setContent(`<div class="text-center text-xs font-mono"><b>${lm.name}</b><br/>${heightText}</div>`)
+                            .openOn(mapInstance);
+                    });
+                    marker.addTo(mapInstance);
+                    landmarksRef.current[lm.name] = marker;
+                } else if (!mapInstance.hasLayer(landmarksRef.current[lm.name])) {
+                    // If marker exists but removed (e.g. toggled back on), re-add
+                    landmarksRef.current[lm.name].addTo(mapInstance);
+                }
+            } catch (e) { console.warn("Landmark error", e); }
         }
     });
 
-    // 2. Handle Fog Layer Geometry
-    if (fogEnabled && userPos) {
-        const worldCoords = [
-            [90, -180], [90, 180], [-90, 180], [-90, -180]
-        ];
-        const holePoints = [];
-        for(let i=0; i<=360; i+=10) {
-            const dest = getDestination(userPos.lat, userPos.lng, i, FOG_RADIUS);
-            holePoints.push([dest.lat, dest.lng]);
+    // Remove stale landmarks
+    Object.keys(landmarksRef.current).forEach(key => {
+        if (!activeLandmarks.has(key)) {
+            safeRemoveLayer(mapInstance, landmarksRef.current[key]);
+            delete landmarksRef.current[key];
         }
+    });
 
-        if (fogLayerRef.current) {
-            // Update existing layer geometry
-            fogLayerRef.current.setLatLngs([worldCoords, holePoints]);
-        } else {
-            // Safety: Ensure no stray fog layers exist
-            map.eachLayer((layer: any) => {
-                if (layer.options && layer.options.className === 'fog-of-war') {
-                    map.removeLayer(layer);
-                }
-            });
+    try {
+        // Fog Layer Geometry
+        if (fogEnabled && userPos) {
+            const worldCoords = [[90, -180], [90, 180], [-90, 180], [-90, -180]];
+            const holePoints = [];
+            for(let i=0; i<=360; i+=10) {
+                const dest = getDestination(userPos.lat, userPos.lng, i, FOG_RADIUS);
+                holePoints.push([dest.lat, dest.lng]);
+            }
 
-            // Create new layer
-            const fogPolygon = window.L.polygon([worldCoords, holePoints], {
-                color: 'transparent',
-                fillColor: '#ffffff', // White fog
-                fillOpacity: currentFogOpacity.current, // Initial opacity
-                className: 'fog-of-war', // CSS blur applied here
-                interactive: false,
-                zIndex: 500
-            });
-            fogPolygon.addTo(map);
-            fogLayerRef.current = fogPolygon;
-        }
-    } else {
-        // Remove fog if disabled
-        if (fogLayerRef.current) {
-            map.removeLayer(fogLayerRef.current);
+            if (fogLayerRef.current) {
+                fogLayerRef.current.setLatLngs([worldCoords, holePoints]);
+                fogLayerRef.current.setStyle({ fillOpacity: fogOpacity });
+                if (!mapInstance.hasLayer(fogLayerRef.current)) fogLayerRef.current.addTo(mapInstance);
+            } else {
+                const fogPolygon = window.L.polygon([worldCoords, holePoints], {
+                    color: 'transparent',
+                    fillColor: '#ffffff',
+                    fillOpacity: fogOpacity,
+                    className: 'fog-of-war',
+                    interactive: false,
+                    zIndex: 500
+                }).addTo(mapInstance);
+                fogLayerRef.current = fogPolygon;
+            }
+        } else if (fogLayerRef.current) {
+            safeRemoveLayer(mapInstance, fogLayerRef.current);
             fogLayerRef.current = null;
-        } else {
-             map.eachLayer((layer: any) => {
-                if (layer.options && layer.options.className === 'fog-of-war') {
-                    map.removeLayer(layer);
-                }
-            });
         }
-    }
+    } catch (e) { console.warn("Fog error", e); }
+  }, [mapInstance, fogEnabled, userPos, completedPuzzleIds, fogOpacity]);
 
-  }, [fogEnabled, userPos, completedPuzzleIds]); // Dep list excludes fogOpacity to avoid recreation
-
-  // Handle Fog "Breathing" Animation (Time Dependent)
+  // 4. Puzzle Markers Hook (Optimized)
   useEffect(() => {
-    let animId: number;
-    const animateFog = () => {
-        if (fogEnabled && fogLayerRef.current) {
-            const base = currentFogOpacity.current;
-            
-            // Only apply breathing if we have started fading in (base > 0)
-            if (base > 0.01) {
-                // Breathing effect: Sine wave with period ~3s
-                const now = Date.now();
-                const oscillation = 0.05 * Math.sin(now / 1500); 
-                
-                // Calculate target opacity
-                const finalOpacity = Math.max(0, Math.min(0.95, base + oscillation));
-                
-                fogLayerRef.current.setStyle({ fillOpacity: finalOpacity });
-            } else {
-                fogLayerRef.current.setStyle({ fillOpacity: 0 });
-            }
-        }
-        animId = requestAnimationFrame(animateFog);
-    };
-
-    if (fogEnabled) {
-        animId = requestAnimationFrame(animateFog);
-    }
-
-    return () => cancelAnimationFrame(animId);
-  }, [fogEnabled]);
-
-  // Update User Marker
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
-
-    const updateUserPosition = (lat: number, lng: number, accuracy?: number) => {
-        setUserPos({ lat, lng });
-
-        // User Marker
-        if (!userMarkerRef.current) {
-            // Create User Marker with Direction Arrow
-            const icon = window.L.divIcon({
-                className: 'user-marker',
-                html: `
-                  <div class="relative flex items-center justify-center w-12 h-12">
-                     <!-- Direction Arrow -->
-                     <div id="user-heading-arrow" class="absolute w-full h-full flex items-center justify-center transition-transform duration-200 ease-linear" style="transform: rotate(0deg);">
-                        <div class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[12px] border-b-blue-500" style="margin-bottom: 24px; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));"></div>
-                     </div>
-                     <!-- Pulse -->
-                     <div class="absolute w-4 h-4 bg-blue-400 rounded-full animate-ping opacity-75"></div>
-                     <!-- Center Dot -->
-                     <div class="relative w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-md z-10"></div>
-                  </div>
-                `,
-                iconSize: [48, 48],
-                iconAnchor: [24, 24]
-            });
-            userMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(mapInstanceRef.current);
-        } else {
-            userMarkerRef.current.setLatLng([lat, lng]);
-        }
-
-        // Accuracy Circle
-        if (accuracy !== undefined) {
-            if (!accuracyCircleRef.current) {
-                accuracyCircleRef.current = window.L.circle([lat, lng], {
-                    radius: accuracy,
-                    color: '#3b82f6', // blue-500
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.15,
-                    weight: 1,
-                    interactive: false
-                }).addTo(mapInstanceRef.current);
-            } else {
-                accuracyCircleRef.current.setLatLng([lat, lng]);
-                accuracyCircleRef.current.setRadius(accuracy);
-                // Ensure visibility if it was removed previously
-                if (!mapInstanceRef.current.hasLayer(accuracyCircleRef.current)) {
-                    accuracyCircleRef.current.addTo(mapInstanceRef.current);
-                }
-            }
-        } else {
-            // Remove circle if accuracy is missing
-            if (accuracyCircleRef.current) {
-                mapInstanceRef.current.removeLayer(accuracyCircleRef.current);
-                accuracyCircleRef.current = null;
-            }
-        }
-
-        // Center map initially or auto-follow
-        if (!hasCenteredRef.current) {
-            mapInstanceRef.current.setView([lat, lng], 17);
-            hasCenteredRef.current = true;
-        } else if (isAutoFollowRef.current) {
-            mapInstanceRef.current.panTo([lat, lng]);
-        }
-    };
-
-    if (!navigator.geolocation) {
-        console.warn("Geolocation is not supported by this browser. Using fallback.");
-        onGpsStatusChangeRef.current('error');
-        updateUserPosition(DEFAULT_LAT, DEFAULT_LNG);
-        return;
-    }
-
-    onGpsStatusChangeRef.current('searching');
-
-    const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-            const { latitude, longitude, accuracy } = position.coords;
-            onGpsStatusChangeRef.current('locked', accuracy);
-            updateUserPosition(latitude, longitude, accuracy);
-        },
-        (error) => {
-            console.warn("Geolocation error:", error.message, "- Using fallback location.");
-            onGpsStatusChangeRef.current('error');
-            updateUserPosition(DEFAULT_LAT, DEFAULT_LNG);
-        },
-        { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
-    );
-
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [gpsRetryTrigger]); // Add trigger dependency
-
-  // Update Puzzle Markers
-  useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstance || !window.L) return;
+    if (!mapInstance._mapPane) return;
 
     puzzles.forEach(puzzle => {
         const isSelected = selectedPuzzleId === puzzle.id;
         const isCompleted = completedPuzzleIds.includes(puzzle.id);
-        
-        // Visibility Check for Fog
         let isVisible = true;
         if (fogEnabled && userPos) {
-            const dist = getDistance(userPos.lat, userPos.lng, puzzle.lat, puzzle.lng);
-            if (dist > FOG_RADIUS) isVisible = false;
+            isVisible = getDistance(userPos.lat, userPos.lng, puzzle.lat, puzzle.lng) <= FOG_RADIUS;
         }
 
-        // Remove existing marker if invisible
         if (!isVisible) {
             if (markersRef.current[puzzle.id]) {
-                mapInstanceRef.current.removeLayer(markersRef.current[puzzle.id]);
+                safeRemoveLayer(mapInstance, markersRef.current[puzzle.id]);
                 delete markersRef.current[puzzle.id];
             }
-            return; // Skip rendering
+            return;
         }
 
-        // Marker Color based on difficulty
-        let colorClass = 'bg-slate-500'; // Default Gray for completed
-        if (!isCompleted) {
-            if (puzzle.difficulty === 'Novice') colorClass = 'bg-emerald-500';
-            if (puzzle.difficulty === 'Geologist') colorClass = 'bg-amber-500';
-            if (puzzle.difficulty === 'Expert') colorClass = 'bg-rose-500';
-            if (puzzle.type === 'side') colorClass = 'bg-indigo-500';
-        } else {
-            colorClass = 'bg-slate-400';
-        }
+        let colorClass = isCompleted ? 'bg-slate-400' : 
+            (puzzle.difficulty === 'Novice' ? 'bg-emerald-500' : 
+            puzzle.difficulty === 'Geologist' ? 'bg-amber-500' : 
+            puzzle.difficulty === 'Expert' ? 'bg-rose-500' : 'bg-indigo-500');
 
         const html = `
-            <div class="relative group flex items-center justify-center w-12 h-12">
+            <div class="relative flex items-center justify-center w-12 h-12">
                 ${!isCompleted ? `<div class="absolute inset-2 ${colorClass} rounded-full animate-ping opacity-40"></div>` : ''}
                 <div class="relative w-8 h-8 ${colorClass} rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white transition-transform ${isSelected ? 'scale-125 ring-4 ring-teal-300' : ''}">
                    ${isCompleted 
@@ -474,207 +487,167 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
             </div>
         `;
 
-        if (!markersRef.current[puzzle.id]) {
-            const icon = window.L.divIcon({
-                className: 'custom-puzzle-marker',
-                html: html,
-                iconSize: [48, 48],
-                iconAnchor: [24, 24] // Center it better for the pulse effect area
-            });
-            
-            const marker = window.L.marker([puzzle.lat, puzzle.lng], { icon });
-            marker.on('click', () => {
-                setSelectedPuzzleId(puzzle.id);
-            });
-            marker.addTo(mapInstanceRef.current);
-            markersRef.current[puzzle.id] = marker;
-        } else {
-             const icon = window.L.divIcon({
-                className: 'custom-puzzle-marker',
-                html: html,
-                iconSize: [48, 48],
-                iconAnchor: [24, 24]
-            });
-            markersRef.current[puzzle.id].setIcon(icon);
-        }
+        try {
+            if (!markersRef.current[puzzle.id]) {
+                const icon = window.L.divIcon({ className: 'custom-puzzle-marker', html, iconSize: [48, 48], iconAnchor: [24, 24] });
+                const marker = window.L.marker([puzzle.lat, puzzle.lng], { icon });
+                marker.on('click', () => setSelectedPuzzleId(puzzle.id));
+                marker.addTo(mapInstance);
+                // Store current HTML to avoid redundant setIcon calls
+                (marker as any)._lastHtml = html;
+                markersRef.current[puzzle.id] = marker;
+            } else {
+                 const marker = markersRef.current[puzzle.id];
+                 if (!mapInstance.hasLayer(marker)) {
+                     marker.addTo(mapInstance);
+                 }
+                 // Only update if visual state changed
+                 if ((marker as any)._lastHtml !== html) {
+                     marker.setIcon(window.L.divIcon({ className: 'custom-puzzle-marker', html, iconSize: [48, 48], iconAnchor: [24, 24] }));
+                     (marker as any)._lastHtml = html;
+                 }
+            }
+        } catch (e) { console.warn("Puzzle marker error", e); }
     });
+  }, [mapInstance, puzzles, selectedPuzzleId, completedPuzzleIds, fogEnabled, userPos]);
 
-    // Clean up markers for puzzles not in current list (rare) or hidden by fog loop above handles removal
-  }, [puzzles, selectedPuzzleId, completedPuzzleIds, fogEnabled, userPos]); 
-
-  // Update Fog Arrows
+  // 5. Directional Arrows Hook (Optimized to reuse markers)
   useEffect(() => {
-    if (!mapInstanceRef.current) return;
+    if (!mapInstance || !window.L) return;
+    if (!mapInstance._mapPane) return;
     
-    // Clear old arrows
-    Object.values(arrowsRef.current).forEach((arrow: any) => {
-        mapInstanceRef.current.removeLayer(arrow);
-    });
-    arrowsRef.current = {};
+    // Track valid arrow IDs for cleanup
+    const activeArrowIds = new Set<string>();
 
-    // Only show arrows if Fog is enabled and we have user position
     if (fogEnabled && userPos) {
         puzzles.forEach(puzzle => {
-            // Skip if completed
             if (completedPuzzleIds.includes(puzzle.id)) return;
-
-            // Calculate distance and bearing
             const dist = getDistance(userPos.lat, userPos.lng, puzzle.lat, puzzle.lng);
-            const bearing = getBearing(userPos.lat, userPos.lng, puzzle.lat, puzzle.lng);
-
-            // If puzzle is outside fog radius, show arrow
             if (dist > FOG_RADIUS) {
+                activeArrowIds.add(puzzle.id);
+
+                const bearing = getBearing(userPos.lat, userPos.lng, puzzle.lat, puzzle.lng);
                 const arrowPos = getDestination(userPos.lat, userPos.lng, bearing, FOG_RADIUS - 20);
                 
-                let color = '#64748b'; 
-                if (puzzle.difficulty === 'Novice') color = '#10b981'; 
-                if (puzzle.difficulty === 'Geologist') color = '#f59e0b'; 
-                if (puzzle.difficulty === 'Expert') color = '#f43f5e'; 
-                if (puzzle.type === 'side') color = '#6366f1'; 
+                try {
+                    if (arrowsRef.current[puzzle.id]) {
+                        // Update existing
+                        const arrow = arrowsRef.current[puzzle.id];
+                        arrow.setLatLng([arrowPos.lat, arrowPos.lng]);
+                        
+                        const color = puzzle.difficulty === 'Novice' ? '#10b981' : (puzzle.difficulty === 'Geologist' ? '#f59e0b' : (puzzle.difficulty === 'Expert' ? '#f43f5e' : '#6366f1'));
+                        const html = `<div style="transform: rotate(${Math.round(bearing)}deg); display: flex; align-items: center; justify-content: center;"><svg width="32" height="32" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="2"><polygon points="12 2 22 22 12 18 2 22" /></svg></div>`;
+                        
+                        // Optimization: Only update DOM if bearing changes by > 2 degrees to reduce layout thrashing
+                        const lastBearing = (arrow as any)._lastBearing || 0;
+                        if (Math.abs(lastBearing - bearing) > 2) {
+                            arrow.setIcon(window.L.divIcon({
+                                className: 'custom-arrow-icon',
+                                html,
+                                iconSize: [32, 32],
+                                iconAnchor: [16, 16]
+                            }));
+                            (arrow as any)._lastBearing = bearing;
+                        }
+                        
+                        if (!mapInstance.hasLayer(arrow)) arrow.addTo(mapInstance);
 
-                const icon = window.L.divIcon({
-                    className: 'custom-arrow-icon',
-                    html: `
-                        <div style="transform: rotate(${bearing}deg); display: flex; align-items: center; justify-content: center; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2));">
-                             <svg width="32" height="32" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polygon points="12 2 22 22 12 18 2 22" />
-                             </svg>
-                        </div>
-                    `,
-                    iconSize: [32, 32],
-                    iconAnchor: [16, 16]
-                });
-                
-                const arrowMarker = window.L.marker([arrowPos.lat, arrowPos.lng], { 
-                    icon, 
-                    zIndexOffset: 1000,
-                    interactive: false 
-                });
-                arrowMarker.addTo(mapInstanceRef.current);
-                arrowsRef.current[puzzle.id] = arrowMarker;
+                    } else {
+                        // Create new
+                        const color = puzzle.difficulty === 'Novice' ? '#10b981' : (puzzle.difficulty === 'Geologist' ? '#f59e0b' : (puzzle.difficulty === 'Expert' ? '#f43f5e' : '#6366f1'));
+                        const html = `<div style="transform: rotate(${Math.round(bearing)}deg); display: flex; align-items: center; justify-content: center;"><svg width="32" height="32" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="2"><polygon points="12 2 22 22 12 18 2 22" /></svg></div>`;
+                        
+                        const icon = window.L.divIcon({
+                            className: 'custom-arrow-icon',
+                            html,
+                            iconSize: [32, 32],
+                            iconAnchor: [16, 16]
+                        });
+                        const marker = window.L.marker([arrowPos.lat, arrowPos.lng], { icon, interactive: false, zIndexOffset: 1000 }).addTo(mapInstance);
+                        (marker as any)._lastBearing = bearing;
+                        arrowsRef.current[puzzle.id] = marker;
+                    }
+                } catch (e) { console.warn("Arrow marker error", e); }
             }
         });
     }
 
-  }, [fogEnabled, userPos, puzzles, completedPuzzleIds]);
+    // Cleanup stale arrows
+    Object.keys(arrowsRef.current).forEach(id => {
+        if (!activeArrowIds.has(id)) {
+            safeRemoveLayer(mapInstance, arrowsRef.current[id]);
+            delete arrowsRef.current[id];
+        }
+    });
+
+  }, [mapInstance, fogEnabled, userPos, puzzles, completedPuzzleIds]);
 
   const toggleAutoFollow = () => {
       if (isAutoFollow) {
-          // Manually Disable
           setIsAutoFollow(false);
       } else {
-          // Enable and Recenter
-          if (userPos && mapInstanceRef.current) {
-              mapInstanceRef.current.setView([userPos.lat, userPos.lng], 17);
-          }
+          if (userPos && mapInstance && mapInstance._mapPane) mapInstance.setView([userPos.lat, userPos.lng], 17);
           setIsAutoFollow(true);
       }
   };
 
   const selectedPuzzle = selectedPuzzleId ? puzzles.find(p => p.id === selectedPuzzleId) : null;
-  const distanceToTarget = (userPos && selectedPuzzle) 
-      ? Math.round(getDistance(userPos.lat, userPos.lng, selectedPuzzle.lat, selectedPuzzle.lng)) 
-      : 0;
+  const distanceToTarget = (userPos && selectedPuzzle) ? Math.round(getDistance(userPos.lat, userPos.lng, selectedPuzzle.lat, selectedPuzzle.lng)) : 0;
 
   return (
-    <div className="relative w-full h-full bg-slate-200">
-      <div ref={mapContainerRef} className="w-full h-full z-0" />
+    <div className="relative w-full h-full bg-slate-200 flex-1 overflow-hidden isolate">
+      <div ref={mapContainerRef} className="absolute inset-0 z-0 outline-none" />
       
-      {/* Selected Mission Card */}
-      {selectedPuzzle && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-sm animate-in slide-in-from-bottom-10 fade-in duration-300">
-              <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 overflow-hidden">
-                  <div className={`h-1.5 w-full ${
-                      completedPuzzleIds.includes(selectedPuzzle.id) ? 'bg-slate-400' :
-                      selectedPuzzle.difficulty === 'Novice' ? 'bg-emerald-500' :
-                      selectedPuzzle.difficulty === 'Geologist' ? 'bg-amber-500' : 
-                      selectedPuzzle.difficulty === 'Expert' ? 'bg-rose-500' : 'bg-indigo-500'
-                  }`}></div>
-                  <div className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                          <div>
-                              <div className="text-[10px] font-mono uppercase tracking-widest text-slate-500 mb-1">Target Locked</div>
-                              <h3 className="font-bold text-slate-800 font-mono leading-tight">{selectedPuzzle.title}</h3>
-                          </div>
-                          <div className="text-right">
-                              <div className="text-2xl font-bold font-mono text-teal-600">{distanceToTarget}m</div>
-                              <div className="text-[10px] text-slate-400 font-mono">DISTANCE</div>
-                          </div>
-                      </div>
-                      
-                      <p className="text-xs text-slate-600 line-clamp-2 mb-4 border-l-2 border-slate-200 pl-2">
-                          {selectedPuzzle.description}
-                      </p>
+      {!mapInstance && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 backdrop-blur-sm z-50">
+              <Loader2 className="w-10 h-10 text-teal-600 animate-spin mb-2" />
+              <div className="text-sm font-mono text-teal-700 animate-pulse uppercase tracking-widest">Initialising Grid...</div>
+          </div>
+      )}
 
-                      <div className="flex gap-2">
-                          <button 
-                            onClick={() => setSelectedPuzzleId(null)}
-                            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-2.5 rounded-lg font-mono font-bold text-xs"
-                          >
-                            CANCEL
-                          </button>
-                          <button 
-                            onClick={() => onPuzzleSelect(selectedPuzzle)}
-                            className={`flex-[2] text-white py-2.5 rounded-lg font-mono font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all ${
-                                completedPuzzleIds.includes(selectedPuzzle.id) 
-                                ? 'bg-slate-500 hover:bg-slate-600' 
-                                : 'bg-teal-600 hover:bg-teal-500 hover:shadow-teal-500/20'
-                            }`}
-                          >
-                             {completedPuzzleIds.includes(selectedPuzzle.id) ? 'REVIEW DATA' : 'ENGAGE MISSION'}
-                             <Play className="w-3 h-3 fill-current" />
-                          </button>
-                      </div>
+      {selectedPuzzle && (
+          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[1000] w-[90%] max-w-sm">
+              <div className="bg-white/95 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200 overflow-hidden p-4">
+                  <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-slate-800 font-mono text-sm">{selectedPuzzle.title}</h3>
+                      <div className="text-right"><div className="text-xl font-bold font-mono text-teal-600">{distanceToTarget}m</div></div>
+                  </div>
+                  <p className="text-xs text-slate-600 mb-4">{selectedPuzzle.description}</p>
+                  <div className="flex gap-2">
+                      <button onClick={() => setSelectedPuzzleId(null)} className="flex-1 bg-slate-100 hover:bg-slate-200 py-2 rounded font-bold text-xs font-mono transition-colors">CANCEL</button>
+                      <button onClick={() => onPuzzleSelect(selectedPuzzle)} className="flex-[2] bg-teal-600 hover:bg-teal-500 text-white py-2 rounded font-bold text-xs font-mono shadow-md transition-colors">
+                        {completedPuzzleIds.includes(selectedPuzzle.id) ? 'REVIEW MISSION' : 'START SCAN'}
+                      </button>
                   </div>
               </div>
           </div>
       )}
-
-      {/* External Map Links */}
-      {showMapLinks && (
-        <div className="absolute bottom-6 right-20 z-[1000] flex flex-col gap-2 animate-in slide-in-from-right-4 fade-in duration-200">
-             <a 
-                href={URL_MAPY} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-white/90 backdrop-blur border border-amber-200 px-4 py-2 rounded-lg shadow-lg hover:bg-amber-50 flex items-center gap-2 text-xs font-mono font-bold text-slate-700"
-            >
-                <Globe className="w-4 h-4 text-amber-500" />
-                Mapy
-            </a>
-            <a 
-                href={URL_GEOMAP} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-white/90 backdrop-blur border border-emerald-200 px-4 py-2 rounded-lg shadow-lg hover:bg-emerald-50 flex items-center gap-2 text-xs font-mono font-bold text-slate-700"
-            >
-                <Layers className="w-4 h-4 text-emerald-500" />
-                GeoMap
-            </a>
-        </div>
-      )}
-
-      {/* Map Controls */}
+      
       <div className="absolute bottom-6 right-6 z-[1000] flex flex-col gap-3">
-        <button 
-            onClick={() => setShowMapLinks(!showMapLinks)}
-            className={`p-3 rounded-full shadow-lg transition-all ${showMapLinks ? 'bg-teal-600 text-white' : 'bg-white text-slate-600 hover:text-teal-600'}`}
+        <a 
+            href="https://geomap.gsmma.gov.tw/gwh/gsb97-1/sys8a/t3/index1.cfm"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-3 rounded-full shadow-lg border-2 bg-white text-slate-600 border-slate-100 hover:text-blue-600 hover:border-blue-200 transition-all flex items-center justify-center"
+            title="開啟線上地質圖"
+        >
+            <Layers className="w-6 h-6" />
+        </a>
+
+        <a 
+            href="https://en.mapy.cz/turisticka?x=121.5810&y=25.0310&z=16"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-3 rounded-full shadow-lg border-2 bg-white text-slate-600 border-slate-100 hover:text-teal-600 hover:border-teal-200 transition-all flex items-center justify-center"
+            title="開啟 Mapy 等高線圖"
         >
             <MapIcon className="w-6 h-6" />
-        </button>
-        <button 
-            onClick={toggleAutoFollow}
-            className={`p-3 rounded-full shadow-lg transition-all active:scale-95 ${
-                isAutoFollow 
-                ? 'bg-teal-600 text-white hover:bg-teal-500' 
-                : 'bg-white text-slate-600 hover:text-teal-600'
-            }`}
-            title={isAutoFollow ? "GPS Locked" : "Free Look Mode"}
-        >
-            {isAutoFollow ? <Navigation className="w-6 h-6 fill-current" /> : <Navigation className="w-6 h-6" />}
+        </a>
+
+        <button onClick={toggleAutoFollow} className={`p-3 rounded-full shadow-lg border-2 transition-all ${isAutoFollow ? 'bg-teal-600 text-white border-teal-400' : 'bg-white text-slate-600 border-slate-100'}`}>
+            <Navigation className={`w-6 h-6 ${isAutoFollow ? 'fill-current' : ''}`} />
         </button>
       </div>
-
     </div>
   );
 };
