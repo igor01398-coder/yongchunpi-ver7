@@ -59,6 +59,12 @@ export interface PuzzleProgress {
     elephant: string;
   };
   m1Reason?: string;
+  
+  // Mission 2 Specific
+  m2Answer1?: string;
+  m2Sandstone?: string;
+  m2Shale?: string;
+
   quizInput?: string;
   quizSelect1?: string;
   quizSelect2?: string;

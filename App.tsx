@@ -39,7 +39,7 @@ const SAMPLE_PUZZLES: Puzzle[] = [
   {
     id: '2',
     title: 'Mission 02: 岩層解密',
-    description: '請先回答地質問題，驗證所在地層後，再進行岩層採樣分析。',
+    description: '請觀察周遭岩壁特徵，判斷所在地層。',
     targetPromptHint: '描述岩石特徵',
     difficulty: 'Geologist',
     xpReward: 300,
@@ -51,13 +51,8 @@ const SAMPLE_PUZZLES: Puzzle[] = [
       question: "請問我們現在在哪一層？",
       answer: "大寮層 或 石底層"
     },
-    uploadInstruction: "請拍攝所收集到的砂岩照片即可。",
     type: 'main',
-    referenceImage: 'https://drive.google.com/uc?export=view&id=1XEaYf4LuoadsCnneUUGQPFBObLRE9ikA',
-    referenceCheckImages: [
-        'https://drive.google.com/uc?export=view&id=1pyoxwe__OHmvF5RwO3KUwunbBF7OSX4E',
-        'https://drive.google.com/uc?export=view&id=1hkYG5AeVQqsTkLFS9X7r84TA3k_f6BMC'
-    ]
+    referenceImage: 'https://drive.google.com/uc?export=view&id=1XEaYf4LuoadsCnneUUGQPFBObLRE9ikA'
   },
   {
     id: '3',

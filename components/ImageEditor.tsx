@@ -29,7 +29,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   // Side Mission State
   const [submissionHistory, setSubmissionHistory] = useState<SideMissionSubmission[]>([]);
 
-  // Quiz State
+  // Quiz State (Generic)
   const [quizInput, setQuizInput] = useState<string>('');
   const [quizSelect1, setQuizSelect1] = useState<string>('');
   const [quizSelect2, setQuizSelect2] = useState<string>('');
@@ -42,6 +42,11 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   const [m1Part2Solved, setM1Part2Solved] = useState(false);
   const [m1Part1Error, setM1Part1Error] = useState(false);
   const [m1Part2Error, setM1Part2Error] = useState(false);
+
+  // Mission 2 State (Rock Layers)
+  const [m2Answer1, setM2Answer1] = useState<string>('');
+  const [m2Sandstone, setM2Sandstone] = useState<string>('');
+  const [m2Shale, setM2Shale] = useState<string>('');
 
   const [isQuizSolved, setIsQuizSolved] = useState<boolean>(false);
   const [showQuizError, setShowQuizError] = useState<boolean>(false);
@@ -58,8 +63,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Unified flag for missions that are "Upload & Verify" only (Single column, no AI generation)
-  // Mission 2 (Rock Analysis), Mission 3 (Contour Drawing) and Side Missions fall into this category.
-  const isUploadOnly = activePuzzle?.id === '2' || activePuzzle?.id === '3' || activePuzzle?.type === 'side';
+  // Mission 3 (Contour Drawing) and Side Missions fall into this category. Mission 2 is now Quiz only.
+  const isUploadOnly = activePuzzle?.id === '3' || activePuzzle?.type === 'side';
 
   // Set default prompt hint when puzzle loads
   useEffect(() => {
@@ -75,6 +80,12 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         if (initialState) {
             if (initialState.m1Heights) setM1Heights(initialState.m1Heights);
             if (initialState.m1Reason) setM1Reason(initialState.m1Reason);
+            
+            // Mission 2 State
+            if (initialState.m2Answer1) setM2Answer1(initialState.m2Answer1);
+            if (initialState.m2Sandstone) setM2Sandstone(initialState.m2Sandstone);
+            if (initialState.m2Shale) setM2Shale(initialState.m2Shale);
+
             if (initialState.quizInput) setQuizInput(initialState.quizInput);
             if (initialState.quizSelect1) setQuizSelect1(initialState.quizSelect1);
             if (initialState.quizSelect2) setQuizSelect2(initialState.quizSelect2);
@@ -106,10 +117,11 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
         if (!initialState && activePuzzle.quiz) {
             setIsQuizSolved(false);
             setQuizInput('');
-            // Default values for dropdowns
+            // Default values for generic dropdowns
             setQuizSelect1('');
             setQuizSelect2('');
             setQuizSelect3('');
+            
             // Reset Mission 1
             setM1Heights({ tiger: '', leopard: '', lion: '', elephant: '' });
             setM1Reason('');
@@ -117,6 +129,12 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             setM1Part2Solved(false);
             setM1Part1Error(false);
             setM1Part2Error(false);
+            
+            // Reset Mission 2
+            setM2Answer1('');
+            setM2Sandstone('');
+            setM2Shale('');
+
             // Reset failure count
             setFailureCount(0);
 
@@ -136,6 +154,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     const progress: PuzzleProgress = {
         m1Heights,
         m1Reason,
+        m2Answer1,
+        m2Sandstone,
+        m2Shale,
         quizInput,
         quizSelect1,
         quizSelect2,
@@ -207,26 +228,25 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     
     let isCorrect = false;
 
-    // Mission 3 Logic: Dropdowns
-    if (activePuzzle.id === '3') {
-         // Logic: 
-         // A: Dense (密集) + Tired (累) + Very Steep (很陡)
-         // B: Sparse (稀疏) + Not Tired (不累) + Gentle (平緩)
+    if (activePuzzle.id === '2') {
+        // Mission 2 Logic
+        const q1Input = m2Answer1.trim();
+        const q1Correct = q1Input.includes('大寮') || q1Input.includes('石底');
+        const q2Correct = m2Sandstone === '較粗糙' && m2Shale === '較細緻';
+        
+        isCorrect = q1Correct && q2Correct;
+
+    } else if (activePuzzle.id === '3') {
+         // Mission 3 Logic: Dropdowns
          if ((quizSelect1 === '密集' && quizSelect2 === '累' && quizSelect3 === '很陡') || 
              (quizSelect1 === '稀疏' && quizSelect2 === '不累' && quizSelect3 === '平緩')) {
              isCorrect = true;
          }
     } else {
-        // Standard Text Logic for Mission 2
+        // Standard Text Logic
         const input = quizInput.trim();
         const target = activePuzzle.quiz.answer;
-        
         isCorrect = input === target || input.includes(target);
-
-        // Rule for Mission 2: Accept "大寮" or "石底" in the answer
-        if (activePuzzle.id === '2') {
-             isCorrect = input.includes('大寮') || input.includes('石底');
-        }
     }
     
     if (isCorrect) {
@@ -284,7 +304,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
 
         playSfx('success');
         
-        // Mission 2 & 3 & Side Logic: If valid, award XP immediately and STOP (no generation)
+        // Mission 3 & Side Logic: If valid, award XP immediately and STOP (no generation)
         if (isUploadOnly && validation.isValid) {
             if (onFieldSolved) onFieldSolved();
             return;
@@ -315,6 +335,9 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     const progressData: PuzzleProgress = {
         m1Heights,
         m1Reason,
+        m2Answer1,
+        m2Sandstone,
+        m2Shale,
         quizInput,
         quizSelect1,
         quizSelect2,
@@ -366,10 +389,11 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
     }
   };
 
-  // Auto-complete Effect for Main Missions (M2, M3)
+  // Auto-complete Effect for Main Missions (M3)
   useEffect(() => {
     // Logic: If Main Mission (not side), Not yet completed, Quiz Solved, and Image Validated -> Auto Complete
-    if (activePuzzle?.type !== 'side' && !isCompleted && isQuizSolved && validationResult?.isValid) {
+    // Since Mission 2 no longer uploads image, it relies on manual completion button.
+    if (activePuzzle?.type !== 'side' && !isCompleted && isQuizSolved && validationResult?.isValid && activePuzzle?.id !== '2') {
         // Use a small timeout to allow UI to update (e.g. show validation success tick) before completing
         const timer = setTimeout(() => {
            handlePreComplete();
@@ -382,12 +406,15 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
   const handleFinalExit = () => {
     if (onComplete) {
         const progressData: PuzzleProgress = {
-            m1Heights: m1Heights,
-            m1Reason: m1Reason,
-            quizInput: quizInput,
-            quizSelect1: quizSelect1,
-            quizSelect2: quizSelect2,
-            quizSelect3: quizSelect3,
+            m1Heights,
+            m1Reason,
+            m2Answer1,
+            m2Sandstone,
+            m2Shale,
+            quizInput,
+            quizSelect1,
+            quizSelect2,
+            quizSelect3,
             imageDescription: prompt,
             uploadedImage: originalImage,
             m1Part1Solved,
@@ -544,7 +571,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                             {isQuizSolved ? 'SECURITY CLEARANCE GRANTED' : 'SECURITY CHALLENGE REQUIRED'}
                         </div>
                         <h3 className={`font-bold font-sans text-lg ${isQuizSolved ? 'text-teal-700' : 'text-slate-800'}`}>
-                            {activePuzzle.quiz.question}
+                            {activePuzzle.id === '2' ? '地層與岩性分析' : activePuzzle.quiz.question}
                         </h3>
                     </div>
                 </div>
@@ -640,6 +667,73 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                                     )}
                                 </div>
                             </div>
+                        ) : activePuzzle.id === '2' ? (
+                            <div className="space-y-6">
+                                {/* Question 1: Layer Name */}
+                                <div className="space-y-2">
+                                    <label className="text-xs font-bold text-slate-700 font-mono block">
+                                        Q1: 請問我們現在在哪一層？
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        value={m2Answer1}
+                                        onChange={(e) => setM2Answer1(e.target.value)}
+                                        placeholder="例如：大寮層"
+                                        className="w-full bg-slate-50 border border-slate-300 text-slate-900 px-3 py-2 rounded font-mono text-sm focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-900 disabled:border-slate-200 disabled:font-bold"
+                                        disabled={isCompleted || isQuizSolved}
+                                    />
+                                </div>
+
+                                {/* Question 2: Texture Matching */}
+                                <div className="space-y-3 border-t border-slate-100 pt-3">
+                                    <label className="text-xs font-bold text-slate-700 font-mono block">
+                                        Q2: 砂岩及頁岩摸起來的觸感為何？
+                                    </label>
+                                    
+                                    <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
+                                        <span className="text-sm font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded text-center">砂岩</span>
+                                        <select 
+                                            value={m2Sandstone}
+                                            onChange={(e) => setM2Sandstone(e.target.value)}
+                                            className="bg-white border border-slate-300 text-slate-900 px-3 py-2 rounded font-mono text-sm focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-900 disabled:border-slate-200 disabled:font-bold"
+                                            disabled={isCompleted || isQuizSolved}
+                                        >
+                                            <option value="">請選擇觸感</option>
+                                            <option value="較粗糙">較粗糙</option>
+                                            <option value="較細緻">較細緻</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-[80px_1fr] gap-3 items-center">
+                                        <span className="text-sm font-mono text-slate-600 bg-slate-100 px-2 py-1 rounded text-center">頁岩</span>
+                                        <select 
+                                            value={m2Shale}
+                                            onChange={(e) => setM2Shale(e.target.value)}
+                                            className="bg-white border border-slate-300 text-slate-900 px-3 py-2 rounded font-mono text-sm focus:border-amber-500 focus:outline-none disabled:bg-slate-100 disabled:text-slate-900 disabled:border-slate-200 disabled:font-bold"
+                                            disabled={isCompleted || isQuizSolved}
+                                        >
+                                            <option value="">請選擇觸感</option>
+                                            <option value="較粗糙">較粗糙</option>
+                                            <option value="較細緻">較細緻</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {showQuizError && (
+                                    <div className="flex items-center gap-2 text-rose-600 text-xs font-mono animate-pulse">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        <span>INCORRECT ANSWER. CHECK LAYER NAME OR TEXTURE PAIRS.</span>
+                                    </div>
+                                )}
+                                {!isQuizSolved && !isCompleted && (
+                                    <button 
+                                        onClick={handleQuizVerify}
+                                        className="w-full bg-amber-600 hover:bg-amber-500 text-white font-bold font-mono py-2.5 rounded uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-500/20"
+                                    >
+                                        VERIFY ANALYSIS
+                                    </button>
+                                )}
+                            </div>
                         ) : activePuzzle.id === '3' ? (
                             <div className="space-y-3">
                                 <div className="flex flex-col gap-2 p-3 border border-slate-200 rounded bg-slate-50">
@@ -728,8 +822,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             </div>
         )}
 
-        {/* Mission Completion Button for Mission 1 (Since no image upload) */}
-        {activePuzzle?.id === '1' && isQuizSolved && !isCompleted && (
+        {/* Mission Completion Button for Mission 1 & 2 (Since no image upload) */}
+        {(activePuzzle?.id === '1' || activePuzzle?.id === '2') && isQuizSolved && !isCompleted && (
             <button
                 onClick={handlePreComplete}
                 className="w-full bg-teal-600 hover:bg-teal-500 text-white py-4 rounded-lg font-mono font-bold text-lg uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg animate-in fade-in slide-in-from-bottom-4"
@@ -747,8 +841,8 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
             </div>
         )}
 
-        {/* Image Area - Unconditionally shown for Mission 2 & 3 & Side, conditional for others */}
-        {(activePuzzle?.id === '2' || activePuzzle?.id === '3' || activePuzzle?.type === 'side' || (isQuizSolved && activePuzzle?.id !== '1')) && (
+        {/* Image Area - Unconditionally shown for Mission 3 & Side, conditional for others (excluding M1 & M2) */}
+        {(activePuzzle?.id === '3' || activePuzzle?.type === 'side' || (isQuizSolved && activePuzzle?.id !== '1' && activePuzzle?.id !== '2')) && (
             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-forwards">
                 
                 {/* Secondary Instruction (If exists) */}
@@ -756,7 +850,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                     <div className={`border-l-2 p-4 rounded-r ${activePuzzle.type === 'side' ? 'bg-indigo-50 border-indigo-500' : 'bg-amber-50 border-amber-500'}`}>
                          <h4 className={`font-bold text-sm mb-1 font-mono flex items-center gap-2 ${activePuzzle.type === 'side' ? 'text-indigo-600' : 'text-amber-700'}`}>
                             <ImageIcon className="w-4 h-4" /> 
-                            {(activePuzzle.id === '2' || activePuzzle.id === '3') ? `Question 2: ${activePuzzle.id === '2' ? 'Geological Analysis' : 'Field Sketch'}` : 'IMAGE REQUIRED'}
+                            {(activePuzzle.id === '3') ? 'Question 2: Field Sketch' : 'IMAGE REQUIRED'}
                          </h4>
                          <p className="text-sm text-slate-700">{activePuzzle.uploadInstruction}</p>
                     </div>
@@ -794,7 +888,7 @@ export const ImageEditor: React.FC<ImageEditorProps> = ({ activePuzzle, onBack, 
                 ) : (
                     <div className="w-full space-y-4">
                          {/* If resultImage is null (e.g. manual confirm), make original image bigger. Else show grid. 
-                             UploadOnly Missions (2 & 3 & Side): Force single column to hide result image. */}
+                             UploadOnly Missions (3 & Side): Force single column to hide result image. */}
                          <div className={`grid ${(resultImage || loading) && !isUploadOnly ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
                             <div className="relative group">
                                 <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded font-mono backdrop-blur-sm z-10">ORIGINAL</div>

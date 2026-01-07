@@ -72,7 +72,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         if (m2) {
             report += `【任務二：岩層解密】\n`;
             report += `失敗/錯誤次數: ${m2.failureCount || 0}\n`;
-            report += `[地層問答]: ${m2.quizInput || '未作答'}\n`;
+            report += `[地層問答]: ${m2.m2Answer1 || m2.quizInput || '未作答'}\n`;
+            report += `[觸感觀察]: 砂岩「${m2.m2Sandstone || '-'}」 / 頁岩「${m2.m2Shale || '-'}」\n`;
             report += `[採樣筆記]: ${m2.imageDescription || '未填寫'}\n\n`;
         } else {
              report += `【任務二】：尚未開始\n\n`;

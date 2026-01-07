@@ -137,25 +137,31 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
         if (!isMountedRef.current) return;
         if (!mapContainerRef.current) return;
 
-        // CRITICAL FIX: Wait for container to have height
-        // If clientHeight is 0, Leaflet cannot calculate tile positions, resulting in a grey/blank map.
-        if (mapContainerRef.current.clientHeight === 0 && retryCount < maxRetries) {
+        // CRITICAL FIX FOR IOS: Wait for container to have significant height
+        // iOS transitions can cause clientHeight to be unstable initially.
+        // Wait until height > 0.
+        if (mapContainerRef.current.clientHeight <= 0 && retryCount < maxRetries) {
             retryCount++;
-            // Retry quickly
-            setTimeout(tryInitMap, 50);
+            // Retry a bit slower to allow iOS UI to settle
+            setTimeout(tryInitMap, 100);
             return;
         }
 
         try {
+            // iOS Fix: Force a browser reflow/repaint to ensure dimensions are real
+            const _ = mapContainerRef.current.offsetHeight;
+
             // Initialize Map
             const map = window.L.map(mapContainerRef.current, {
               center: [DEFAULT_LAT, DEFAULT_LNG],
               zoom: 16,
               zoomControl: false,
               attributionControl: false,
-              fadeAnimation: false, 
-              zoomAnimation: false, // Disable to prevent _leaflet_pos errors during unmounts/updates
-              markerZoomAnimation: false // Disable to prevent _leaflet_pos errors
+              fadeAnimation: true, 
+              zoomAnimation: true,
+              markerZoomAnimation: true,
+              // iOS Fix: prevent weird touch behaviors
+              tap: false 
             });
 
             map.on('dragstart', () => setIsAutoFollow(false));
@@ -170,18 +176,29 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
                 setMapInstance(map);
             }
 
-            // Force Leaflet to re-calculate size immediately and after a delay to ensure full rendering
-            map.invalidateSize();
-            setTimeout(() => { if (isMountedRef.current) map.invalidateSize(); }, 200);
-            setTimeout(() => { if (isMountedRef.current) map.invalidateSize(); }, 500);
+            // Force Leaflet to re-calculate size using requestAnimationFrame
+            // This is crucial for iOS to ensure update happens in the correct paint frame
+            const forceUpdate = () => {
+                if(isMountedRef.current && map && map._mapPane) {
+                    map.invalidateSize();
+                }
+            };
+            
+            // Multiple triggers to catch end of iOS spring animations
+            requestAnimationFrame(forceUpdate);
+            setTimeout(() => requestAnimationFrame(forceUpdate), 300);
+            setTimeout(() => requestAnimationFrame(forceUpdate), 600);
+            setTimeout(() => requestAnimationFrame(forceUpdate), 1000);
 
         } catch (e) {
             console.error("Map initialization failed", e);
         }
     };
 
-    // Use a small delay to ensure the container is mounted in DOM
-    const initTimer = setTimeout(tryInitMap, 100);
+    // iOS FIX: Increased initial delay from 100ms to 400ms.
+    // Navigating back from a heavy page (like ImageEditor) on iOS often involves a visual slide transition.
+    // Initializing the map *during* this transition causes the 0-height bug. 400ms is safe for most transitions.
+    const initTimer = setTimeout(tryInitMap, 400);
 
     return () => {
       clearTimeout(initTimer);
@@ -194,26 +211,24 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
     if (!mapInstance || !mapContainerRef.current) return;
 
     const handleResize = () => {
-        if (mapInstance && mapInstance._mapPane) mapInstance.invalidateSize();
+        if (mapInstance && mapInstance._mapPane) {
+            requestAnimationFrame(() => {
+                try {
+                    mapInstance.invalidateSize();
+                } catch(e) {}
+            });
+        }
     };
 
     const resizeObserver = new ResizeObserver(() => {
-        requestAnimationFrame(handleResize);
+        handleResize();
     });
     
     if (mapContainerRef.current) {
         resizeObserver.observe(mapContainerRef.current);
     }
 
-    // Multiple invalidation triggers to ensure map renders correctly after transitions
-    const t1 = setTimeout(handleResize, 100);
-    const t2 = setTimeout(handleResize, 300);
-    const t3 = setTimeout(handleResize, 600);
-
     return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
         resizeObserver.disconnect();
         
         // Cleanup map instance on unmount
@@ -263,10 +278,10 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
                 userMarkerRef.current = window.L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(mapInstance);
             } else {
                 if (mapInstance.hasLayer(userMarkerRef.current)) {
-                    userMarkerRef.current.setLatLng([lat, lng]);
+                    try { userMarkerRef.current.setLatLng([lat, lng]); } catch(e) {}
                 } else {
                     userMarkerRef.current.addTo(mapInstance);
-                    userMarkerRef.current.setLatLng([lat, lng]);
+                    try { userMarkerRef.current.setLatLng([lat, lng]); } catch(e) {}
                 }
             }
 
@@ -275,8 +290,10 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
                     accuracyCircleRef.current = window.L.circle([lat, lng], { radius: accuracy, color: '#3b82f6', fillOpacity: 0.15, weight: 1, interactive: false }).addTo(mapInstance);
                 } else {
                     if (mapInstance.hasLayer(accuracyCircleRef.current)) {
-                        accuracyCircleRef.current.setLatLng([lat, lng]);
-                        accuracyCircleRef.current.setRadius(accuracy);
+                        try {
+                            accuracyCircleRef.current.setLatLng([lat, lng]);
+                            accuracyCircleRef.current.setRadius(accuracy);
+                        } catch(e) {}
                     } else {
                         accuracyCircleRef.current.addTo(mapInstance);
                     }
@@ -533,7 +550,9 @@ export const GameMap: React.FC<GameMapProps> = ({ puzzles, onPuzzleSelect, fogEn
                     if (arrowsRef.current[puzzle.id]) {
                         // Update existing
                         const arrow = arrowsRef.current[puzzle.id];
-                        arrow.setLatLng([arrowPos.lat, arrowPos.lng]);
+                        try {
+                           arrow.setLatLng([arrowPos.lat, arrowPos.lng]);
+                        } catch(e) {}
                         
                         const color = puzzle.difficulty === 'Novice' ? '#10b981' : (puzzle.difficulty === 'Geologist' ? '#f59e0b' : (puzzle.difficulty === 'Expert' ? '#f43f5e' : '#6366f1'));
                         const html = `<div style="transform: rotate(${Math.round(bearing)}deg); display: flex; align-items: center; justify-content: center;"><svg width="32" height="32" viewBox="0 0 24 24" fill="${color}" stroke="white" stroke-width="2"><polygon points="12 2 22 22 12 18 2 22" /></svg></div>`;
